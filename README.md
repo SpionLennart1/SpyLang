@@ -2,6 +2,7 @@
 
 🧠 VARIABLES
 LET x = value        → create/change variable
+LET xx = array[text,1] → create/change arrays
 Use variables: %x%
 
 ---
@@ -12,6 +13,7 @@ PRINT RED "text"     → colored text
 PRINT GREEN "text"
 PRINT YELLOW "text"
 PRINT BLUE "text"
+PRINT array[1]       → output an array value
 INPUT x              → user input into variable
 
 ---
