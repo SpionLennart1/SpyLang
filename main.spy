@@ -1,0 +1,16 @@
+IMPORT debug.spy
+
+FUNC menu {
+PRINT YELLOW "=== SpyLang Starter Menu ==="
+PRINT "1: Stress Test"
+PRINT RED "2: Coming soon"
+PRINT RED "3: Coming soon"
+PRINT RED "4: Coming soon"
+PRINT RED "5: Coming soon"
+INPUT option
+IF option == 1 {
+CALL debug
+}
+}
+
+CALL menu

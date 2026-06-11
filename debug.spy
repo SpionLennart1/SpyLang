@@ -1,0 +1,97 @@
+FUNC debug {
+    CLS
+    PRINT BLUE "=== SPYLANG STRESS TEST ==="
+    PAUSE
+
+    CALL math_test
+    CALL loop_test
+    CALL function_test
+    CALL input_test
+
+    PRINT GREEN "=== ALL TESTS COMPLETE ==="
+}
+
+FUNC math_test {
+    CLS
+    PRINT YELLOW "--- MATH TEST ---"
+
+    LET a = 5 + 10 * 2
+    LET b = (5 + 10) * 2
+    LET c = b / 2 + a
+
+    PRINT a
+    PRINT b
+    PRINT c
+
+    IF c > 20 {
+        PRINT GREEN "Math OK"
+    }
+
+    IF c <= 20 {
+        PRINT RED "Math FAILED"
+    }
+
+    SLEEP 1
+}
+
+FUNC loop_test {
+    CLS
+    PRINT YELLOW "--- LOOP TEST ---"
+
+    LET i = 0
+    LET sum = 0
+
+    WHILE i < 5 {
+        LET sum = sum + i
+        PRINT i
+        LET i = i + 1
+    }
+
+    PRINT BLUE "SUM RESULT:"
+    PRINT sum
+
+    SLEEP 1
+}
+
+FUNC function_test {
+    CLS
+    PRINT YELLOW "--- FUNCTION TEST ---"
+
+    CALL add 10 20
+
+    PRINT BLUE "Returned value:"
+    PRINT __return__
+
+    IF __return__ == 30 {
+        PRINT GREEN "RETURN OK"
+    }
+
+    IF __return__ != 30 {
+        PRINT RED "RETURN FAILED"
+    }
+
+    SLEEP 1
+}
+
+FUNC add a b {
+    LET result = a + b
+    RETURN result
+}
+
+FUNC input_test {
+    CLS
+    PRINT YELLOW "--- INPUT TEST ---"
+
+    PRINT "Enter a number:"
+    INPUT x
+
+    IF x > 10 {
+        PRINT GREEN "BIG NUMBER"
+    }
+
+    IF x <= 10 {
+        PRINT RED "SMALL NUMBER"
+    }
+
+    SLEEP 1
+}
