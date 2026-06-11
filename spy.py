@@ -2,6 +2,8 @@ import sys
 import operator
 import os
 import time
+import random
+import re
 
 variables = {}
 functions = {}
@@ -27,14 +29,51 @@ precedence = {
 def eval_value(value):
     value = str(value).strip()
 
+    if value.startswith("[") and value.endswith("]"):
+        content = value[1:-1]
+
+        if not content.strip():
+            return []
+
+        return [item.strip() for item in content.split(",")]
+
     if value.startswith('"') and value.endswith('"'):
         return value[1:-1]
 
     if value.startswith("%") and value.endswith("%"):
         return variables.get(value[1:-1], "")
 
+    array_match = re.match(r"^([a-zA-Z_]\w*)\[(.+)\]$", value)
+    if array_match:
+        arr_name = array_match.group(1)
+        index = eval_value(array_match.group(2))
+
+        if arr_name in variables and isinstance(variables[arr_name], list):
+            try:
+                return variables[arr_name][int(index)]
+            except:
+                return ""
+        return ""
+
     if value in variables:
         return variables[value]
+
+    if value.startswith("LEN "):
+        name = value[4:].strip()
+
+        if name in variables and isinstance(variables[name], list):
+            return len(variables[name])
+
+        return 0
+
+    if value.startswith("RANDOM "):
+        parts = value.split()
+
+        if len(parts) == 3:
+            low = int(eval_value(parts[1]))
+            high = int(eval_value(parts[2]))
+
+            return random.randint(low, high)
 
     try:
         tokens = tokenize(value)
@@ -283,6 +322,30 @@ def execute(lines):
             i = new_i + 1
             continue
 
+        # ---------------- PUSH ----------------
+        if line.startswith("PUSH "):
+            parts = line.split(maxsplit=2)
+
+            if len(parts) == 3:
+                arr_name = parts[1]
+                item = eval_value(parts[2])
+
+                if arr_name in variables and isinstance(variables[arr_name], list):
+                    variables[arr_name].append(item)
+
+            i += 1
+            continue
+
+        # ---------------- POP ----------------
+        if line.startswith("POP "):
+            arr_name = line[4:].strip()
+
+            if arr_name in variables and isinstance(variables[arr_name], list):
+                if len(variables[arr_name]) > 0:
+                    variables[arr_name].pop()
+
+            i += 1
+            continue
 
         # ---------------- CALL ----------------
         if line.startswith("CALL "):
