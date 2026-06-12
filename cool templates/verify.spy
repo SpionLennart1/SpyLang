@@ -1,0 +1,59 @@
+FUNC verify {
+    LET allowed = 0
+
+    WHILE allowed == 0 {
+        CLS
+
+        PRINT BLUE "===================="
+        PRINT BLUE " AGE VERIFICATION"
+        PRINT BLUE "===================="
+
+        PRINT ""
+        PRINT "Enter your age:"
+        INPUT age
+
+        IF age >= 18 {
+            LET allowed = 1
+        }
+        ELSE {
+            PRINT RED "You must be 18+ to continue."
+            PRINT "Try again."
+            SLEEP 2
+        }
+    }
+
+    LET bot_passed = 0
+
+    WHILE bot_passed == 0 {
+        CLS
+
+        PRINT YELLOW "===================="
+        PRINT YELLOW " ANTI-BOT CHECK"
+        PRINT YELLOW "===================="
+
+        LET a = RANDOM 1 10
+        LET b = RANDOM 1 10
+        LET answer = a * b
+
+        PRINT ""
+        PRINT "Solve this:"
+        PRINT %a%
+        PRINT "*"
+        PRINT %b%
+
+        INPUT user_answer
+
+        IF user_answer == answer {
+            LET bot_passed = 1
+        }
+        ELSE {
+            PRINT RED "Wrong answer. Try again."
+            SLEEP 1
+        }
+    }
+
+    CLS
+    PRINT GREEN "Verification complete."
+    SLEEP 1
+    CLS
+}

@@ -1,0 +1,135 @@
+CLS
+
+PRINT GREEN "======================"
+PRINT GREEN "   SPYLANG LAN CHAT"
+PRINT GREEN "======================"
+
+PRINT ""
+PRINT "Your IP:"
+PRINT %myip%
+
+PRINT ""
+PRINT "Choose mode:"
+PRINT "1 = Host"
+PRINT "2 = Join"
+INPUT mode
+
+LET running = 1
+
+
+IF mode == 1 {
+
+    CLS
+
+    PRINT GREEN "=== HOST MODE ==="
+    PRINT "Give this IP to your friend:"
+    PRINT %myip%
+    PRINT ""
+    PRINT "Waiting for friend..."
+
+    HOST 5000
+
+    PRINT GREEN "Friend connected!"
+    PRINT "Type exit to close chat."
+    PRINT ""
+
+    WHILE running == 1 {
+
+        PRINT YELLOW "Waiting for message..."
+        RECEIVE msg
+
+        PRINT BLUE "Friend:"
+        PRINT %msg%
+
+        IF msg == "exit" {
+            LET running = 0
+        }
+
+        IF running == 1 {
+            PRINT ""
+            PRINT GREEN "You:"
+            INPUT reply
+
+            SEND reply
+
+            IF reply == "exit" {
+                LET running = 0
+            }
+        }
+
+        PRINT ""
+    }
+
+    DISCONNECT
+
+    PRINT RED "Chat closed."
+    PAUSE
+}
+
+
+IF mode == 2 {
+
+    CLS
+
+    PRINT BLUE "=== JOIN MODE ==="
+    PRINT "Enter host IP:"
+    PRINT "Use 127.0.0.1 if testing on same PC."
+    INPUT ip
+
+    CONNECT ip 5000
+
+    IF netok == 1 {
+
+        PRINT GREEN "Connected!"
+        PRINT "Type exit to close chat."
+        PRINT ""
+
+        WHILE running == 1 {
+
+            PRINT GREEN "You:"
+            INPUT msg
+
+            SEND msg
+
+            IF msg == "exit" {
+                LET running = 0
+            }
+
+            IF running == 1 {
+                PRINT ""
+                PRINT YELLOW "Waiting for reply..."
+                RECEIVE reply
+
+                PRINT BLUE "Friend:"
+                PRINT %reply%
+
+                IF reply == "exit" {
+                    LET running = 0
+                }
+            }
+
+            PRINT ""
+        }
+
+        DISCONNECT
+
+        PRINT RED "Chat closed."
+        PAUSE
+    }
+
+    ELSE {
+        PRINT RED "Could not connect."
+        PRINT "Make sure the other player chose Host first."
+        PRINT "Same PC test IP: 127.0.0.1"
+        PAUSE
+    }
+}
+
+
+IF mode != 1 {
+    IF mode != 2 {
+        PRINT RED "Invalid mode."
+        PRINT "Restart and choose 1 or 2."
+        PAUSE
+    }
+}

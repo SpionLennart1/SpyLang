@@ -1,0 +1,751 @@
+CLS
+
+PRINT GREEN "========================"
+PRINT GREEN "     MINI MONOPOLY"
+PRINT GREEN "========================"
+
+PRINT ""
+PRINT "2 Player local game"
+PRINT "Buy properties, buy houses, collect rent."
+PRINT "If someone goes bankrupt, the other player wins."
+PRINT ""
+
+LET p1_money = 800
+LET p2_money = 800
+
+LET p1_pos = 0
+LET p2_pos = 0
+
+LET turn = 1
+LET gameover = 0
+LET winner = 0
+
+LET properties = [GO,Bakery,Arcade,Harbor,Castle]
+LET prices = [0,100,140,180,220]
+LET rents = [0,10,15,20,30]
+LET housecosts = [0,50,70,90,110]
+
+# owners: 0 = no owner, 1 = player 1, 2 = player 2
+LET owner1 = 0
+LET owner2 = 0
+LET owner3 = 0
+LET owner4 = 0
+
+LET house1 = 0
+LET house2 = 0
+LET house3 = 0
+LET house4 = 0
+
+PAUSE
+
+
+WHILE gameover == 0 {
+
+    CLS
+
+    PRINT BLUE "========================"
+    PRINT BLUE "        STATUS"
+    PRINT BLUE "========================"
+
+    PRINT "Player 1 money:"
+    PRINT %p1_money%
+
+    PRINT "Player 2 money:"
+    PRINT %p2_money%
+
+    PRINT ""
+
+    PRINT "P1 position:"
+    PRINT properties[p1_pos]
+
+    PRINT "P2 position:"
+    PRINT properties[p2_pos]
+
+    PRINT ""
+
+    PRINT YELLOW "Property houses:"
+    PRINT "Bakery:"
+    PRINT %house1%
+    PRINT "Arcade:"
+    PRINT %house2%
+    PRINT "Harbor:"
+    PRINT %house3%
+    PRINT "Castle:"
+    PRINT %house4%
+
+    PRINT ""
+
+
+    IF turn == 1 {
+
+        PRINT GREEN "PLAYER 1 TURN"
+        PRINT "Press Enter to roll."
+        INPUT wait
+
+        LET dice = RANDOM 1 6
+
+        PRINT "Player 1 rolled:"
+        PRINT %dice%
+
+        LET p1_pos = p1_pos + dice
+
+        IF p1_pos > 4 {
+            LET p1_pos = p1_pos - 5
+            LET p1_money = p1_money + 200
+            PRINT GREEN "Player 1 passed GO! +200"
+        }
+
+        PRINT "Player 1 landed on:"
+        PRINT properties[p1_pos]
+
+
+        IF p1_pos == 0 {
+            PRINT GREEN "GO space. Nothing happens."
+        }
+
+
+        IF p1_pos == 1 {
+
+            PRINT YELLOW "Property: Bakery"
+            PRINT "Price:"
+            PRINT prices[1]
+            PRINT "Current houses:"
+            PRINT %house1%
+
+            IF owner1 == 0 {
+                PRINT "No owner. Buy it? 1=yes 2=no"
+                INPUT buy
+
+                IF buy == 1 {
+                    LET cost = prices[1]
+
+                    IF p1_money >= cost {
+                        LET p1_money = p1_money - cost
+                        LET owner1 = 1
+                        PRINT GREEN "Player 1 bought Bakery!"
+                    }
+
+                    IF p1_money < cost {
+                        PRINT RED "Not enough money!"
+                    }
+                }
+            }
+
+            IF owner1 == 2 {
+                LET rent = rents[1]
+                LET extra = house1 * 10
+                LET rent = rent + extra
+
+                PRINT RED "Player 2 owns this property!"
+                PRINT "Rent:"
+                PRINT %rent%
+
+                LET p1_money = p1_money - rent
+                LET p2_money = p2_money + rent
+            }
+
+            IF owner1 == 1 {
+                PRINT GREEN "You own this property."
+
+                IF house1 < 3 {
+                    PRINT "Buy a house? Cost:"
+                    PRINT housecosts[1]
+                    PRINT "1=yes 2=no"
+                    INPUT buyhouse
+
+                    IF buyhouse == 1 {
+                        LET hcost = housecosts[1]
+
+                        IF p1_money >= hcost {
+                            LET p1_money = p1_money - hcost
+                            LET house1 = house1 + 1
+                            PRINT GREEN "House bought!"
+                        }
+
+                        IF p1_money < hcost {
+                            PRINT RED "Not enough money!"
+                        }
+                    }
+                }
+
+                IF house1 >= 3 {
+                    PRINT YELLOW "Max houses reached."
+                }
+            }
+        }
+
+
+        IF p1_pos == 2 {
+
+            PRINT YELLOW "Property: Arcade"
+            PRINT "Price:"
+            PRINT prices[2]
+            PRINT "Current houses:"
+            PRINT %house2%
+
+            IF owner2 == 0 {
+                PRINT "No owner. Buy it? 1=yes 2=no"
+                INPUT buy
+
+                IF buy == 1 {
+                    LET cost = prices[2]
+
+                    IF p1_money >= cost {
+                        LET p1_money = p1_money - cost
+                        LET owner2 = 1
+                        PRINT GREEN "Player 1 bought Arcade!"
+                    }
+
+                    IF p1_money < cost {
+                        PRINT RED "Not enough money!"
+                    }
+                }
+            }
+
+            IF owner2 == 2 {
+                LET rent = rents[2]
+                LET extra = house2 * 10
+                LET rent = rent + extra
+
+                PRINT RED "Player 2 owns this property!"
+                PRINT "Rent:"
+                PRINT %rent%
+
+                LET p1_money = p1_money - rent
+                LET p2_money = p2_money + rent
+            }
+
+            IF owner2 == 1 {
+                PRINT GREEN "You own this property."
+
+                IF house2 < 3 {
+                    PRINT "Buy a house? Cost:"
+                    PRINT housecosts[2]
+                    PRINT "1=yes 2=no"
+                    INPUT buyhouse
+
+                    IF buyhouse == 1 {
+                        LET hcost = housecosts[2]
+
+                        IF p1_money >= hcost {
+                            LET p1_money = p1_money - hcost
+                            LET house2 = house2 + 1
+                            PRINT GREEN "House bought!"
+                        }
+
+                        IF p1_money < hcost {
+                            PRINT RED "Not enough money!"
+                        }
+                    }
+                }
+
+                IF house2 >= 3 {
+                    PRINT YELLOW "Max houses reached."
+                }
+            }
+        }
+
+
+        IF p1_pos == 3 {
+
+            PRINT YELLOW "Property: Harbor"
+            PRINT "Price:"
+            PRINT prices[3]
+            PRINT "Current houses:"
+            PRINT %house3%
+
+            IF owner3 == 0 {
+                PRINT "No owner. Buy it? 1=yes 2=no"
+                INPUT buy
+
+                IF buy == 1 {
+                    LET cost = prices[3]
+
+                    IF p1_money >= cost {
+                        LET p1_money = p1_money - cost
+                        LET owner3 = 1
+                        PRINT GREEN "Player 1 bought Harbor!"
+                    }
+
+                    IF p1_money < cost {
+                        PRINT RED "Not enough money!"
+                    }
+                }
+            }
+
+            IF owner3 == 2 {
+                LET rent = rents[3]
+                LET extra = house3 * 10
+                LET rent = rent + extra
+
+                PRINT RED "Player 2 owns this property!"
+                PRINT "Rent:"
+                PRINT %rent%
+
+                LET p1_money = p1_money - rent
+                LET p2_money = p2_money + rent
+            }
+
+            IF owner3 == 1 {
+                PRINT GREEN "You own this property."
+
+                IF house3 < 3 {
+                    PRINT "Buy a house? Cost:"
+                    PRINT housecosts[3]
+                    PRINT "1=yes 2=no"
+                    INPUT buyhouse
+
+                    IF buyhouse == 1 {
+                        LET hcost = housecosts[3]
+
+                        IF p1_money >= hcost {
+                            LET p1_money = p1_money - hcost
+                            LET house3 = house3 + 1
+                            PRINT GREEN "House bought!"
+                        }
+
+                        IF p1_money < hcost {
+                            PRINT RED "Not enough money!"
+                        }
+                    }
+                }
+
+                IF house3 >= 3 {
+                    PRINT YELLOW "Max houses reached."
+                }
+            }
+        }
+
+
+        IF p1_pos == 4 {
+
+            PRINT YELLOW "Property: Castle"
+            PRINT "Price:"
+            PRINT prices[4]
+            PRINT "Current houses:"
+            PRINT %house4%
+
+            IF owner4 == 0 {
+                PRINT "No owner. Buy it? 1=yes 2=no"
+                INPUT buy
+
+                IF buy == 1 {
+                    LET cost = prices[4]
+
+                    IF p1_money >= cost {
+                        LET p1_money = p1_money - cost
+                        LET owner4 = 1
+                        PRINT GREEN "Player 1 bought Castle!"
+                    }
+
+                    IF p1_money < cost {
+                        PRINT RED "Not enough money!"
+                    }
+                }
+            }
+
+            IF owner4 == 2 {
+                LET rent = rents[4]
+                LET extra = house4 * 10
+                LET rent = rent + extra
+
+                PRINT RED "Player 2 owns this property!"
+                PRINT "Rent:"
+                PRINT %rent%
+
+                LET p1_money = p1_money - rent
+                LET p2_money = p2_money + rent
+            }
+
+            IF owner4 == 1 {
+                PRINT GREEN "You own this property."
+
+                IF house4 < 3 {
+                    PRINT "Buy a house? Cost:"
+                    PRINT housecosts[4]
+                    PRINT "1=yes 2=no"
+                    INPUT buyhouse
+
+                    IF buyhouse == 1 {
+                        LET hcost = housecosts[4]
+
+                        IF p1_money >= hcost {
+                            LET p1_money = p1_money - hcost
+                            LET house4 = house4 + 1
+                            PRINT GREEN "House bought!"
+                        }
+
+                        IF p1_money < hcost {
+                            PRINT RED "Not enough money!"
+                        }
+                    }
+                }
+
+                IF house4 >= 3 {
+                    PRINT YELLOW "Max houses reached."
+                }
+            }
+        }
+
+
+        IF p1_money <= 0 {
+            LET gameover = 1
+            LET winner = 2
+        }
+
+        IF gameover == 0 {
+            LET turn = 2
+        }
+
+        PAUSE
+    }
+
+
+    IF turn == 2 {
+
+        PRINT YELLOW "PLAYER 2 TURN"
+        PRINT "Press Enter to roll."
+        INPUT wait
+
+        LET dice = RANDOM 1 6
+
+        PRINT "Player 2 rolled:"
+        PRINT %dice%
+
+        LET p2_pos = p2_pos + dice
+
+        IF p2_pos > 4 {
+            LET p2_pos = p2_pos - 5
+            LET p2_money = p2_money + 200
+            PRINT GREEN "Player 2 passed GO! +200"
+        }
+
+        PRINT "Player 2 landed on:"
+        PRINT properties[p2_pos]
+
+
+        IF p2_pos == 0 {
+            PRINT GREEN "GO space. Nothing happens."
+        }
+
+
+        IF p2_pos == 1 {
+
+            PRINT YELLOW "Property: Bakery"
+            PRINT "Price:"
+            PRINT prices[1]
+            PRINT "Current houses:"
+            PRINT %house1%
+
+            IF owner1 == 0 {
+                PRINT "No owner. Buy it? 1=yes 2=no"
+                INPUT buy
+
+                IF buy == 1 {
+                    LET cost = prices[1]
+
+                    IF p2_money >= cost {
+                        LET p2_money = p2_money - cost
+                        LET owner1 = 2
+                        PRINT GREEN "Player 2 bought Bakery!"
+                    }
+
+                    IF p2_money < cost {
+                        PRINT RED "Not enough money!"
+                    }
+                }
+            }
+
+            IF owner1 == 1 {
+                LET rent = rents[1]
+                LET extra = house1 * 10
+                LET rent = rent + extra
+
+                PRINT RED "Player 1 owns this property!"
+                PRINT "Rent:"
+                PRINT %rent%
+
+                LET p2_money = p2_money - rent
+                LET p1_money = p1_money + rent
+            }
+
+            IF owner1 == 2 {
+                PRINT GREEN "You own this property."
+
+                IF house1 < 3 {
+                    PRINT "Buy a house? Cost:"
+                    PRINT housecosts[1]
+                    PRINT "1=yes 2=no"
+                    INPUT buyhouse
+
+                    IF buyhouse == 1 {
+                        LET hcost = housecosts[1]
+
+                        IF p2_money >= hcost {
+                            LET p2_money = p2_money - hcost
+                            LET house1 = house1 + 1
+                            PRINT GREEN "House bought!"
+                        }
+
+                        IF p2_money < hcost {
+                            PRINT RED "Not enough money!"
+                        }
+                    }
+                }
+
+                IF house1 >= 3 {
+                    PRINT YELLOW "Max houses reached."
+                }
+            }
+        }
+
+
+        IF p2_pos == 2 {
+
+            PRINT YELLOW "Property: Arcade"
+            PRINT "Price:"
+            PRINT prices[2]
+            PRINT "Current houses:"
+            PRINT %house2%
+
+            IF owner2 == 0 {
+                PRINT "No owner. Buy it? 1=yes 2=no"
+                INPUT buy
+
+                IF buy == 1 {
+                    LET cost = prices[2]
+
+                    IF p2_money >= cost {
+                        LET p2_money = p2_money - cost
+                        LET owner2 = 2
+                        PRINT GREEN "Player 2 bought Arcade!"
+                    }
+
+                    IF p2_money < cost {
+                        PRINT RED "Not enough money!"
+                    }
+                }
+            }
+
+            IF owner2 == 1 {
+                LET rent = rents[2]
+                LET extra = house2 * 10
+                LET rent = rent + extra
+
+                PRINT RED "Player 1 owns this property!"
+                PRINT "Rent:"
+                PRINT %rent%
+
+                LET p2_money = p2_money - rent
+                LET p1_money = p1_money + rent
+            }
+
+            IF owner2 == 2 {
+                PRINT GREEN "You own this property."
+
+                IF house2 < 3 {
+                    PRINT "Buy a house? Cost:"
+                    PRINT housecosts[2]
+                    PRINT "1=yes 2=no"
+                    INPUT buyhouse
+
+                    IF buyhouse == 1 {
+                        LET hcost = housecosts[2]
+
+                        IF p2_money >= hcost {
+                            LET p2_money = p2_money - hcost
+                            LET house2 = house2 + 1
+                            PRINT GREEN "House bought!"
+                        }
+
+                        IF p2_money < hcost {
+                            PRINT RED "Not enough money!"
+                        }
+                    }
+                }
+
+                IF house2 >= 3 {
+                    PRINT YELLOW "Max houses reached."
+                }
+            }
+        }
+
+
+        IF p2_pos == 3 {
+
+            PRINT YELLOW "Property: Harbor"
+            PRINT "Price:"
+            PRINT prices[3]
+            PRINT "Current houses:"
+            PRINT %house3%
+
+            IF owner3 == 0 {
+                PRINT "No owner. Buy it? 1=yes 2=no"
+                INPUT buy
+
+                IF buy == 1 {
+                    LET cost = prices[3]
+
+                    IF p2_money >= cost {
+                        LET p2_money = p2_money - cost
+                        LET owner3 = 2
+                        PRINT GREEN "Player 2 bought Harbor!"
+                    }
+
+                    IF p2_money < cost {
+                        PRINT RED "Not enough money!"
+                    }
+                }
+            }
+
+            IF owner3 == 1 {
+                LET rent = rents[3]
+                LET extra = house3 * 10
+                LET rent = rent + extra
+
+                PRINT RED "Player 1 owns this property!"
+                PRINT "Rent:"
+                PRINT %rent%
+
+                LET p2_money = p2_money - rent
+                LET p1_money = p1_money + rent
+            }
+
+            IF owner3 == 2 {
+                PRINT GREEN "You own this property."
+
+                IF house3 < 3 {
+                    PRINT "Buy a house? Cost:"
+                    PRINT housecosts[3]
+                    PRINT "1=yes 2=no"
+                    INPUT buyhouse
+
+                    IF buyhouse == 1 {
+                        LET hcost = housecosts[3]
+
+                        IF p2_money >= hcost {
+                            LET p2_money = p2_money - hcost
+                            LET house3 = house3 + 1
+                            PRINT GREEN "House bought!"
+                        }
+
+                        IF p2_money < hcost {
+                            PRINT RED "Not enough money!"
+                        }
+                    }
+                }
+
+                IF house3 >= 3 {
+                    PRINT YELLOW "Max houses reached."
+                }
+            }
+        }
+
+
+        IF p2_pos == 4 {
+
+            PRINT YELLOW "Property: Castle"
+            PRINT "Price:"
+            PRINT prices[4]
+            PRINT "Current houses:"
+            PRINT %house4%
+
+            IF owner4 == 0 {
+                PRINT "No owner. Buy it? 1=yes 2=no"
+                INPUT buy
+
+                IF buy == 1 {
+                    LET cost = prices[4]
+
+                    IF p2_money >= cost {
+                        LET p2_money = p2_money - cost
+                        LET owner4 = 2
+                        PRINT GREEN "Player 2 bought Castle!"
+                    }
+
+                    IF p2_money < cost {
+                        PRINT RED "Not enough money!"
+                    }
+                }
+            }
+
+            IF owner4 == 1 {
+                LET rent = rents[4]
+                LET extra = house4 * 10
+                LET rent = rent + extra
+
+                PRINT RED "Player 1 owns this property!"
+                PRINT "Rent:"
+                PRINT %rent%
+
+                LET p2_money = p2_money - rent
+                LET p1_money = p1_money + rent
+            }
+
+            IF owner4 == 2 {
+                PRINT GREEN "You own this property."
+
+                IF house4 < 3 {
+                    PRINT "Buy a house? Cost:"
+                    PRINT housecosts[4]
+                    PRINT "1=yes 2=no"
+                    INPUT buyhouse
+
+                    IF buyhouse == 1 {
+                        LET hcost = housecosts[4]
+
+                        IF p2_money >= hcost {
+                            LET p2_money = p2_money - hcost
+                            LET house4 = house4 + 1
+                            PRINT GREEN "House bought!"
+                        }
+
+                        IF p2_money < hcost {
+                            PRINT RED "Not enough money!"
+                        }
+                    }
+                }
+
+                IF house4 >= 3 {
+                    PRINT YELLOW "Max houses reached."
+                }
+            }
+        }
+
+
+        IF p2_money <= 0 {
+            LET gameover = 1
+            LET winner = 1
+        }
+
+        IF gameover == 0 {
+            LET turn = 1
+        }
+
+        PAUSE
+    }
+}
+
+
+CLS
+
+PRINT GREEN "========================"
+PRINT GREEN "       GAME OVER"
+PRINT GREEN "========================"
+
+IF winner == 1 {
+    PRINT GREEN "PLAYER 1 WINS!"
+}
+
+IF winner == 2 {
+    PRINT YELLOW "PLAYER 2 WINS!"
+}
+
+PRINT ""
+PRINT "Final money:"
+PRINT "Player 1:"
+PRINT %p1_money%
+PRINT "Player 2:"
+PRINT %p2_money%
+
+PAUSE
