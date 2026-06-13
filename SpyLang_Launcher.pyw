@@ -21,7 +21,7 @@ from pathlib import Path
 
 
 APP_NAME = "SpyLang Launcher"
-APP_VERSION = "v1.5-copy-paste"
+APP_VERSION = "v1.7-fixed-input"
 CONFIG_FOLDER = "configs"
 CONFIG_NAME = "spylang_launcher_config.json"
 
@@ -56,6 +56,12 @@ THEME = {
     "purple": "#9b7cff",
     "black": "#000000",
 }
+
+
+def clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
 
 
 def ensure_config_dir():
@@ -197,8 +203,23 @@ class SpyLangLauncher(tk.Tk):
         self.selected_script_path = None
 
         self.title(f"{APP_NAME} {APP_VERSION}")
-        self.geometry("1180x760")
-        self.minsize(980, 640)
+
+        self.screen_w = self.winfo_screenwidth()
+        self.screen_h = self.winfo_screenheight()
+        self.compact_mode = self.screen_w < 1050 or self.screen_h < 720
+
+        win_w = clamp(1180, 760, self.screen_w - 40)
+        win_h = clamp(760, 500, self.screen_h - 80)
+
+        if self.compact_mode:
+            win_w = clamp(980, 720, self.screen_w - 30)
+            win_h = clamp(640, 460, self.screen_h - 70)
+
+        x = max(0, (self.screen_w - win_w) // 2)
+        y = max(0, (self.screen_h - win_h) // 2)
+
+        self.geometry(f"{win_w}x{win_h}+{x}+{y}")
+        self.minsize(720, 460)
         self.configure(bg=THEME["bg"])
 
         self.spy_var = tk.StringVar(value=self.config_data.get("spy_path", ""))
@@ -210,23 +231,51 @@ class SpyLangLauncher(tk.Tk):
         self.refresh_script_list()
         self.update_status()
 
+        self.bind("<F11>", self.toggle_fullscreen)
+        self.bind("<Escape>", self.exit_fullscreen)
+        self.bind("<Control-l>", self.focus_input)
+        self.bind("<Control-L>", self.focus_input)
+
         self.after(30, self.poll_output)
+
+    def focus_input(self, event=None):
+        try:
+            self.input_entry.focus_set()
+            self.input_entry.see("end")
+        except Exception:
+            pass
+        return "break"
+
+    def toggle_fullscreen(self, event=None):
+        self.attributes("-fullscreen", not bool(self.attributes("-fullscreen")))
+        return "break"
+
+    def exit_fullscreen(self, event=None):
+        self.attributes("-fullscreen", False)
+        return "break"
 
     def build_ui(self):
         root = tk.Frame(self, bg=THEME["bg"])
-        root.pack(fill="both", expand=True, padx=18, pady=16)
+        pad_x = 8 if self.compact_mode else 18
+        pad_y = 8 if self.compact_mode else 16
+        root.pack(fill="both", expand=True, padx=pad_x, pady=pad_y)
 
         self.build_header(root)
 
         body = tk.Frame(root, bg=THEME["bg"])
-        body.pack(fill="both", expand=True, pady=(16, 0))
+        body.pack(fill="both", expand=True, pady=((8 if self.compact_mode else 16), 0))
 
         left = Card(body)
-        left.pack(side="left", fill="both", expand=True, padx=(0, 12))
+        left.pack(side="left", fill="both", expand=True, padx=(0, 8 if self.compact_mode else 12))
 
-        right = Card(body, width=325)
-        right.pack(side="right", fill="y")
-        right.pack_propagate(False)
+        right_width = 260 if self.compact_mode else 325
+        right = Card(body, width=right_width)
+
+        if self.screen_w >= 820:
+            right.pack(side="right", fill="y")
+            right.pack_propagate(False)
+        else:
+            self.right_hidden_small_screen = True
 
         self.build_left(left)
         self.build_right(right)
@@ -260,16 +309,17 @@ class SpyLangLauncher(tk.Tk):
             text="SpyLang Launcher",
             bg=THEME["bg"],
             fg=THEME["text"],
-            font=("Segoe UI", 24, "bold")
+            font=("Segoe UI", 18 if self.compact_mode else 24, "bold")
         ).pack(anchor="w")
 
-        tk.Label(
-            text_box,
-            text="Run .spy scripts with an embedded console, input bar, colors, and script explorer.",
-            bg=THEME["bg"],
-            fg=THEME["muted"],
-            font=("Segoe UI", 10)
-        ).pack(anchor="w", pady=(2, 0))
+        if not self.compact_mode:
+            tk.Label(
+                text_box,
+                text="Run .spy scripts with an embedded console, input bar, colors, and script explorer.",
+                bg=THEME["bg"],
+                fg=THEME["muted"],
+                font=("Segoe UI", 10)
+            ).pack(anchor="w", pady=(2, 0))
 
         make_button(header, "Open Folder", self.open_base_folder).pack(side="right", padx=(8, 0))
         make_button(header, "Refresh", self.refresh_all).pack(side="right", padx=(8, 0))
@@ -285,15 +335,15 @@ class SpyLangLauncher(tk.Tk):
 
     def build_left(self, parent):
         top = tk.Frame(parent, bg=THEME["panel"])
-        top.pack(fill="x", padx=16, pady=16)
+        top.pack(fill="x", padx=(10 if self.compact_mode else 16), pady=(10 if self.compact_mode else 16))
 
         self.section_title(top, "Interpreter")
 
         spy_row = tk.Frame(top, bg=THEME["panel"])
-        spy_row.pack(fill="x", pady=(7, 14))
+        spy_row.pack(fill="x", pady=(5, 8 if self.compact_mode else 14))
 
         self.spy_entry = make_entry(spy_row, self.spy_var)
-        self.spy_entry.pack(side="left", fill="x", expand=True, ipady=7)
+        self.spy_entry.pack(side="left", fill="x", expand=True, ipady=(4 if self.compact_mode else 7))
 
         make_button(spy_row, "Browse", self.browse_spy).pack(side="left", padx=(8, 0))
         make_button(spy_row, "Auto", self.auto_find_spy).pack(side="left", padx=(8, 0))
@@ -301,10 +351,10 @@ class SpyLangLauncher(tk.Tk):
         self.section_title(top, "Script")
 
         script_row = tk.Frame(top, bg=THEME["panel"])
-        script_row.pack(fill="x", pady=(7, 14))
+        script_row.pack(fill="x", pady=(5, 8 if self.compact_mode else 14))
 
         self.script_entry = make_entry(script_row, self.script_var)
-        self.script_entry.pack(side="left", fill="x", expand=True, ipady=7)
+        self.script_entry.pack(side="left", fill="x", expand=True, ipady=(4 if self.compact_mode else 7))
 
         make_button(script_row, "Browse", self.browse_script).pack(side="left", padx=(8, 0))
 
@@ -336,7 +386,7 @@ class SpyLangLauncher(tk.Tk):
             highlightthickness=0,
             bd=0
         )
-        console_wrap.pack(fill="both", expand=True, padx=16, pady=(0, 14))
+        console_wrap.pack(fill="both", expand=True, padx=(10 if self.compact_mode else 16), pady=(0, 8 if self.compact_mode else 14))
 
         console_header = tk.Frame(console_wrap, bg=THEME["panel2"])
         console_header.pack(fill="x")
@@ -375,7 +425,7 @@ class SpyLangLauncher(tk.Tk):
 
         make_button(
             console_header,
-            "Copy All",
+            "All" if self.compact_mode else "Copy All",
             self.copy_console_all,
             bg=THEME["panel3"],
             hover=THEME["border"],
@@ -403,9 +453,10 @@ class SpyLangLauncher(tk.Tk):
             insertbackground=THEME["text"],
             relief="flat",
             wrap="word",
-            font=("Cascadia Mono", 10),
+            font=("Cascadia Mono", 9 if self.compact_mode else 10),
             undo=False,
             state="disabled",
+            height=8 if self.compact_mode else 16,
             padx=10,
             pady=10
         )
@@ -451,7 +502,9 @@ class SpyLangLauncher(tk.Tk):
         self.console_menu.add_command(label="Clear console", command=self.clear_console)
 
         input_card = tk.Frame(parent, bg=THEME["panel"])
-        input_card.pack(fill="x", padx=16, pady=(0, 16))
+        input_card.pack(side="bottom", fill="x", padx=(10 if self.compact_mode else 16), pady=(0, 8 if self.compact_mode else 16))
+        self.input_card = input_card
+        self.console_wrap = console_wrap
 
         tk.Label(
             input_card,
@@ -465,8 +518,8 @@ class SpyLangLauncher(tk.Tk):
         input_row.pack(fill="x")
 
         self.input_entry = make_entry(input_row, self.input_var)
-        self.input_entry.configure(font=("Cascadia Mono", 11))
-        self.input_entry.pack(side="left", fill="x", expand=True, ipady=9)
+        self.input_entry.configure(font=("Cascadia Mono", 10 if self.compact_mode else 11))
+        self.input_entry.pack(side="left", fill="x", expand=True, ipady=(6 if self.compact_mode else 9))
         self.input_entry.bind("<Return>", self.on_input_enter)
 
         make_button(
@@ -488,14 +541,35 @@ class SpyLangLauncher(tk.Tk):
             fg=THEME["black"]
         ).pack(side="left", padx=(8, 0))
 
+        # Keep the input bar pinned like a footer.
+        # Pack order matters in Tkinter: reserve bottom input space first,
+        # then let the console take only the remaining space.
+        self.console_wrap.pack_forget()
+        self.input_card.pack_forget()
+
+        self.input_card.pack(
+            side="bottom",
+            fill="x",
+            padx=(10 if self.compact_mode else 16),
+            pady=(0, 8 if self.compact_mode else 16)
+        )
+
+        self.console_wrap.pack(
+            side="top",
+            fill="both",
+            expand=True,
+            padx=(10 if self.compact_mode else 16),
+            pady=(0, 6 if self.compact_mode else 10)
+        )
+
         self.write_console("SpyLang Launcher ready.\n", "green")
-        self.write_console("Use the input bar below for INPUT and WAITKEY.\n", "muted")
-        self.write_console("Click inside the Input field, type, then press Enter.\n", "muted")
-        self.write_console("Console copy/paste: select text and press Ctrl+C, right-click, or use Copy All.\n\n", "muted")
+        self.write_console("Input bar is pinned to the bottom so it stays visible on smaller screens.\n", "muted")
+        self.write_console("Use the input bar for INPUT and WAITKEY.\n", "muted")
+        self.write_console("Copy output with Ctrl+C, right-click, or Copy All.\n\n", "muted")
 
     def build_right(self, parent):
         inner = tk.Frame(parent, bg=THEME["panel"])
-        inner.pack(fill="both", expand=True, padx=14, pady=14)
+        inner.pack(fill="both", expand=True, padx=(10 if self.compact_mode else 14), pady=(10 if self.compact_mode else 14))
 
         tk.Label(
             inner,
