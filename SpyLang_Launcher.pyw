@@ -21,7 +21,7 @@ from pathlib import Path
 
 
 APP_NAME = "SpyLang Launcher"
-APP_VERSION = "v1.6"
+APP_VERSION = "v1.5-copy-paste"
 CONFIG_FOLDER = "configs"
 CONFIG_NAME = "spylang_launcher_config.json"
 
@@ -373,6 +373,26 @@ class SpyLangLauncher(tk.Tk):
             font=("Segoe UI", 9, "bold")
         ).pack(side="left", padx=10)
 
+        make_button(
+            console_header,
+            "Copy All",
+            self.copy_console_all,
+            bg=THEME["panel3"],
+            hover=THEME["border"],
+            fg=THEME["text"],
+            width=8
+        ).pack(side="right", padx=(4, 8), pady=4)
+
+        make_button(
+            console_header,
+            "Copy",
+            self.copy_console_selection,
+            bg=THEME["panel3"],
+            hover=THEME["border"],
+            fg=THEME["text"],
+            width=6
+        ).pack(side="right", padx=4, pady=4)
+
         console_body = tk.Frame(console_wrap, bg=THEME["console"])
         console_body.pack(fill="both", expand=True, padx=1, pady=(0, 1))
 
@@ -390,8 +410,11 @@ class SpyLangLauncher(tk.Tk):
             pady=10
         )
         self.console.pack(side="left", fill="both", expand=True)
-        self.console.bind("<Key>", lambda event: "break")
-        self.console.bind("<Button-1>", lambda event: self.input_entry.focus_set())
+        self.console.bind("<Control-c>", self.copy_console_selection)
+        self.console.bind("<Control-C>", self.copy_console_selection)
+        self.console.bind("<Control-a>", self.select_all_console)
+        self.console.bind("<Control-A>", self.select_all_console)
+        self.console.bind("<Button-3>", self.show_console_menu)
 
         scroll = tk.Scrollbar(
             console_body,
@@ -412,6 +435,20 @@ class SpyLangLauncher(tk.Tk):
         self.console.tag_configure("input", foreground="#ffffff")
         self.console.tag_configure("muted", foreground=THEME["muted"])
         self.console.tag_configure("purple", foreground=THEME["purple"])
+
+        self.console_menu = tk.Menu(
+            self.console,
+            tearoff=0,
+            bg=THEME["panel2"],
+            fg=THEME["text"],
+            activebackground=THEME["accent_dark"],
+            activeforeground=THEME["black"],
+            relief="flat"
+        )
+        self.console_menu.add_command(label="Copy selected", command=self.copy_console_selection)
+        self.console_menu.add_command(label="Copy all", command=self.copy_console_all)
+        self.console_menu.add_separator()
+        self.console_menu.add_command(label="Clear console", command=self.clear_console)
 
         input_card = tk.Frame(parent, bg=THEME["panel"])
         input_card.pack(fill="x", padx=16, pady=(0, 16))
@@ -434,6 +471,16 @@ class SpyLangLauncher(tk.Tk):
 
         make_button(
             input_row,
+            "Paste",
+            self.paste_to_input,
+            bg=THEME["panel3"],
+            hover=THEME["border"],
+            fg=THEME["text"],
+            width=6
+        ).pack(side="left", padx=(8, 0))
+
+        make_button(
+            input_row,
             "Send",
             self.send_input,
             bg=THEME["accent_dark"],
@@ -444,7 +491,7 @@ class SpyLangLauncher(tk.Tk):
         self.write_console("SpyLang Launcher ready.\n", "green")
         self.write_console("Use the input bar below for INPUT and WAITKEY.\n", "muted")
         self.write_console("Click inside the Input field, type, then press Enter.\n", "muted")
-        self.write_console("The console is read-only to avoid double input.\n\n", "muted")
+        self.write_console("Console copy/paste: select text and press Ctrl+C, right-click, or use Copy All.\n\n", "muted")
 
     def build_right(self, parent):
         inner = tk.Frame(parent, bg=THEME["panel"])
@@ -569,6 +616,54 @@ class SpyLangLauncher(tk.Tk):
             fg=THEME["muted"],
             font=("Segoe UI", 9)
         ).pack(side="right")
+
+    def copy_console_selection(self, event=None):
+        try:
+            selected = self.console.get("sel.first", "sel.last")
+        except tk.TclError:
+            return "break"
+
+        self.clipboard_clear()
+        self.clipboard_append(selected)
+        self.update()
+
+        return "break"
+
+    def copy_console_all(self, event=None):
+        text = self.console.get("1.0", "end-1c")
+
+        if text == "":
+            return "break"
+
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.update()
+
+        return "break"
+
+    def select_all_console(self, event=None):
+        self.console.tag_add("sel", "1.0", "end-1c")
+        self.console.mark_set("insert", "1.0")
+        self.console.see("1.0")
+
+        return "break"
+
+    def show_console_menu(self, event):
+        try:
+            self.console_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.console_menu.grab_release()
+
+        return "break"
+
+    def paste_to_input(self):
+        try:
+            text = self.clipboard_get()
+        except tk.TclError:
+            return
+
+        self.input_entry.focus_set()
+        self.input_entry.insert("insert", text)
 
     def write_console(self, text, tag="normal"):
         self.console.configure(state="normal")
