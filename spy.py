@@ -8,6 +8,7 @@ import socket
 import select
 import json
 import difflib
+import traceback
 
 variables = {}
 functions = {}
@@ -22,7 +23,7 @@ RETURN_SIGNAL = "__RETURN__"
 BREAK_SIGNAL = "__BREAK__"
 EXIT_SIGNAL = "__EXIT__"
 
-SPYLANG_VERSION = "v2.0-game-engine-prerelease1"
+SPYLANG_VERSION = "v2.5-game-framework-prerelease1"
 
 
 # -----------------------------
@@ -111,10 +112,10 @@ def error(line_obj, message, suggestion=None):
 
 def suggest_command(cmd):
     commands = [
-        'LET', 'PRINT', 'INPUT', 'IF', 'ELSEIF', 'ELSE', 'WHILE', 'FOR', 'REPEAT', 'FOREACH', 'FUNC', 'CALL', 'RETURN', 'GLOBAL', 'BREAK',
-        'EXIT', 'PUSH', 'POP', 'SET', 'DEL', 'CLEAR', 'SAVEVAR', 'LOADVAR', 'WRITEFILE', 'READFILE', 'CLS', 'PAUSE', 'SLEEP', 'WAITKEY', 'HOST', 'CONNECT', 'SEND', 'RECEIVE', 'TRYRECEIVE', 'BROADCAST',
-        'PING', 'DISCONNECT', 'IMPORT', 'AICHOICE', 'AICHANCE', 'AIWEIGHTED', 'AIDECIDE', 'AIREMEMBER', 'AIRECALL', 'AIFORGET', 'AIPATH', 'AISTATE', 'AIDIALOGUE', 'AINAME', 'AIPERSONALITY', 'AIROUTE', 'DRAWMAP', 'MAPSIZE', 'GETTILE', 'SETTILE',
-        'FINDPOS', 'CANMOVE', 'MOVEPLAYER', 'DISTANCE', 'NEWOBJ', 'OBJSET', 'OBJGET', 'OBJHAS', 'OBJDEL', 'OBJKEYS', 'SAVESLOT', 'LOADSLOT', 'DELSLOT', 'LISTSLOTS', 'TIMERSTART', 'TIMERGET', 'TIMERRESET', 'SCREENCLEAR', 'SCREENWRITE', 'SCREENRENDER', 'DICE', 'ADDITEM', 'HASITEM', 'REMOVEITEM', 'COUNTITEM', 'VERSION', 'HELP'
+        'LET', 'PRINT', 'INPUT', 'IF', 'ELSEIF', 'ELSE', 'WHILE', 'FOR', 'REPEAT', 'FOREACH', 'FUNC', 'CALL', 'RETURN', 'GLOBAL', 'BREAK', 'EXIT', 'PUSH', 'POP', 'SET', 'DEL', 'CLEAR', 'SAVEVAR',
+        'LOADVAR', 'WRITEFILE', 'READFILE', 'CLS', 'PAUSE', 'SLEEP', 'WAITKEY', 'HOST', 'CONNECT', 'SEND', 'RECEIVE', 'TRYRECEIVE', 'BROADCAST', 'PING', 'DISCONNECT', 'IMPORT', 'AICHOICE', 'AICHANCE', 'AIWEIGHTED', 'AIDECIDE', 'AIREMEMBER', 'AIRECALL', 'AIFORGET', 'AIPATH', 'AISTATE',
+        'AIDIALOGUE', 'AINAME', 'AIPERSONALITY', 'AIROUTE', 'AIPRESET', 'AIPATROL', 'AICHASE', 'AIFLEE', 'DRAWMAP', 'MAPSIZE', 'GETTILE', 'SETTILE', 'FINDPOS', 'CANMOVE', 'MOVEPLAYER', 'DISTANCE', 'MAPTRANS', 'NEWOBJ', 'OBJSET', 'OBJGET', 'OBJHAS', 'OBJDEL', 'OBJKEYS', 'SAVESLOT', 'LOADSLOT',
+        'DELSLOT', 'LISTSLOTS', 'SLOTMENU', 'ACCOUNTCREATE', 'ACCOUNTLOGIN', 'ACCOUNTSET', 'ACCOUNTGET', 'ACCOUNTDELETE', 'ACCOUNTLIST', 'QUESTADD', 'QUESTDONE', 'QUESTSTATUS', 'QUESTLIST', 'XPADD', 'LEVELINFO', 'SHOPBUY', 'SHOPSELL', 'ENEMYNEW', 'ENEMYHIT', 'ENEMYALIVE', 'ENEMYATTACK', 'ENEMYMOVE', 'TIMERSTART', 'TIMERGET', 'TIMERRESET', 'SCREENCLEAR', 'SCREENWRITE', 'SCREENRENDER', 'DICE', 'ADDITEM', 'HASITEM', 'REMOVEITEM', 'COUNTITEM', 'SETUSERNAME', 'CHATSEND', 'CHATRECEIVE', 'LOBBYADD', 'LOBBYLIST', 'TURNINIT', 'NEXTTURN', 'ISTURN', 'RECONNECT', 'NETINFO', 'NETREADY', 'VERSION', 'HELP'
     ]
 
     match = difflib.get_close_matches(cmd.upper(), commands, n=1)
@@ -223,6 +224,62 @@ def parse_object_items(content):
 
     return obj
 
+
+def get_path_value(path):
+    parts = str(path).split(".")
+
+    if not parts:
+        return ""
+
+    current = variables.get(parts[0], "")
+
+    for key in parts[1:]:
+        if isinstance(current, dict):
+            current = current.get(key, "")
+        else:
+            return ""
+
+    return current
+
+
+def set_path_value(path, value):
+    parts = str(path).split(".")
+
+    if len(parts) < 2:
+        variables[path] = value
+        return
+
+    root = parts[0]
+
+    if root not in variables or not isinstance(variables[root], dict):
+        variables[root] = {}
+
+    current = variables[root]
+
+    for key in parts[1:-1]:
+        if key not in current or not isinstance(current[key], dict):
+            current[key] = {}
+        current = current[key]
+
+    current[parts[-1]] = value
+
+
+def has_path_value(path):
+    parts = str(path).split(".")
+
+    if not parts or parts[0] not in variables:
+        return False
+
+    current = variables.get(parts[0])
+
+    for key in parts[1:]:
+        if not isinstance(current, dict) or key not in current:
+            return False
+        current = current[key]
+
+    return True
+
+
 def get_array_item(arr_name, index):
     if arr_name in variables and isinstance(variables[arr_name], list):
         try:
@@ -283,16 +340,9 @@ def eval_value(value):
     if value.startswith("{") and value.endswith("}"):
         return parse_object_items(value[1:-1])
 
-    # object.key
-    object_match = re.match(r"^([a-zA-Z_]\w*)\.([a-zA-Z_]\w*)$", value)
-    if object_match:
-        obj_name = object_match.group(1)
-        key = object_match.group(2)
-
-        if obj_name in variables and isinstance(variables[obj_name], dict):
-            return variables[obj_name].get(key, "")
-
-        return ""
+    # object.key / object.deep.key
+    if re.match(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)+$", value):
+        return get_path_value(value)
 
     # string helpers
     if value.startswith("UPPER "):
@@ -877,6 +927,88 @@ def game_json_safe(value):
     except:
         return str(value)
 
+
+def game_accounts_path():
+    return os.path.join(game_save_dir(), "accounts.json")
+
+
+def game_load_accounts():
+    path = game_accounts_path()
+
+    if not os.path.exists(path):
+        return {}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except:
+        return {}
+
+
+def game_save_accounts(accounts):
+    with open(game_accounts_path(), "w", encoding="utf-8") as f:
+        json.dump(accounts, f, indent=2)
+
+
+def quest_store():
+    if "__quests__" not in variables or not isinstance(variables.get("__quests__"), dict):
+        variables["__quests__"] = {}
+    return variables["__quests__"]
+
+
+def ai_patrol_store():
+    if "__ai_patrol__" not in variables or not isinstance(variables.get("__ai_patrol__"), dict):
+        variables["__ai_patrol__"] = {}
+    return variables["__ai_patrol__"]
+
+
+def enemy_is_alive(enemy):
+    return isinstance(enemy, dict) and float(enemy.get("hp", 0)) > 0
+
+
+def syntax_check_lines(lines):
+    depth = 0
+    ok = True
+
+    for line_obj in lines:
+        raw = get_text(line_obj)
+        text = strip_inline_comment(raw)
+        in_quote = False
+        escaped = False
+
+        for ch in text:
+            if ch == "\\" and in_quote:
+                escaped = not escaped
+                continue
+            if ch == '"' and not escaped:
+                in_quote = not in_quote
+            escaped = False
+
+        if in_quote:
+            error(line_obj, "Syntax check: missing closing quote.")
+            ok = False
+
+        stripped = text.strip()
+
+        if stripped.endswith("{"):
+            depth += 1
+
+        if stripped == "}":
+            depth -= 1
+            if depth < 0:
+                error(line_obj, "Syntax check: closing brace without opening brace.")
+                ok = False
+                depth = 0
+
+    if depth > 0:
+        print("SpyLang syntax check failed")
+        print("Missing closing brace: }")
+        ok = False
+
+    return ok
+
+
 # -----------------------------
 # OFFLINE AI HELPERS
 # -----------------------------
@@ -1343,17 +1475,12 @@ def execute(lines):
 
         # ---------------- SET array[index] value / SET object.key value ----------------
         if line.startswith("SET "):
-            object_set_match = re.match(r"^SET\s+([a-zA-Z_]\w*)\.([a-zA-Z_]\w*)\s+(.+)$", line)
+            object_set_match = re.match(r"^SET\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)+)\s+(.+)$", line)
 
             if object_set_match:
-                obj_name = object_set_match.group(1)
-                key = object_set_match.group(2)
-                val = eval_value(object_set_match.group(3).strip())
-
-                if obj_name not in variables or not isinstance(variables[obj_name], dict):
-                    variables[obj_name] = {}
-
-                variables[obj_name][key] = val
+                path = object_set_match.group(1)
+                val = eval_value(object_set_match.group(2).strip())
+                set_path_value(path, val)
 
                 i += 1
                 continue
@@ -2629,6 +2756,511 @@ def execute(lines):
             continue
 
 
+
+        # ---------------- v2.5 AI PRESET ----------------
+        if line.startswith("AIPRESET "):
+            args = line[9:].strip().split()
+            if len(args) != 2:
+                error(lines[i], "Usage: AIPRESET aggressive move_var")
+                i += 1
+                continue
+            preset = str(eval_value(args[0])).lower()
+            target = args[1]
+            presets = {
+                "aggressive": "[Attack:75,HeavyAttack:15,Shield:5,Heal:5]",
+                "defensive": "[Attack:35,Shield:40,Heal:20,Charge:5]",
+                "coward": "[Flee:45,Shield:30,Heal:20,Attack:5]",
+                "boss": "[Attack:45,HeavyAttack:30,Shield:10,Heal:10,Taunt:5]",
+                "chaotic": "[Attack:20,HeavyAttack:20,Shield:20,Heal:20,Taunt:20]"
+            }
+            variables[target] = ai_weighted_choice(presets.get(preset, presets["chaotic"]))
+            i += 1
+            continue
+
+        # ---------------- AIPATROL ----------------
+        if line.startswith("AIPATROL "):
+            args = line[9:].strip().split()
+            if len(args) != 3:
+                error(lines[i], "Usage: AIPATROL route id direction_var")
+                i += 1
+                continue
+            route = eval_value(args[0])
+            patrol_id = str(eval_value(args[1]))
+            target = args[2]
+            if not isinstance(route, list) or len(route) == 0:
+                error(lines[i], "AIPATROL route must be a non-empty array.")
+                i += 1
+                continue
+            store = ai_patrol_store()
+            idx = int(store.get(patrol_id, 0))
+            variables[target] = route[idx % len(route)]
+            store[patrol_id] = (idx + 1) % len(route)
+            i += 1
+            continue
+
+        # ---------------- AICHASE ----------------
+        if line.startswith("AICHASE "):
+            args = line[8:].strip().split()
+            if len(args) != 5:
+                error(lines[i], "Usage: AICHASE enemy_x enemy_y player_x player_y direction_var")
+                i += 1
+                continue
+            variables[args[4]] = ai_step_towards(args[0], args[1], args[2], args[3])
+            i += 1
+            continue
+
+        # ---------------- AIFLEE ----------------
+        if line.startswith("AIFLEE "):
+            args = line[7:].strip().split()
+            if len(args) != 5:
+                error(lines[i], "Usage: AIFLEE enemy_x enemy_y player_x player_y direction_var")
+                i += 1
+                continue
+            d = ai_step_towards(args[0], args[1], args[2], args[3])
+            opposite = {"left":"right", "right":"left", "up":"down", "down":"up", "none":"none"}
+            variables[args[4]] = opposite.get(d, "none")
+            i += 1
+            continue
+
+        # ---------------- MAPTRANS ----------------
+        if line.startswith("MAPTRANS "):
+            args = line[9:].strip().split()
+            if len(args) != 10:
+                error(lines[i], "Usage: MAPTRANS x y trigger_x trigger_y target_map target_x target_y map_var x_var y_var")
+                i += 1
+                continue
+            x = int(eval_value(args[0])); y = int(eval_value(args[1]))
+            tx = int(eval_value(args[2])); ty = int(eval_value(args[3]))
+            if x == tx and y == ty:
+                variables[args[7]] = eval_value(args[4])
+                variables[args[8]] = int(eval_value(args[5]))
+                variables[args[9]] = int(eval_value(args[6]))
+                variables["mapchanged"] = True
+            else:
+                variables["mapchanged"] = False
+            i += 1
+            continue
+
+        # ---------------- SLOTMENU ----------------
+        if line.startswith("SLOTMENU "):
+            target = line[9:].strip()
+            folder = game_save_dir()
+            slots = []
+            for filename in os.listdir(folder):
+                if filename.startswith("slot_") and filename.endswith(".json"):
+                    slots.append(filename[5:-5])
+            slots.sort()
+            variables[target] = slots
+            print("Save slots:")
+            if len(slots) == 0:
+                print("No save slots found.")
+            else:
+                for s in slots:
+                    print(s)
+            i += 1
+            continue
+
+        # ---------------- ACCOUNTCREATE ----------------
+        if line.startswith("ACCOUNTCREATE "):
+            args = line[14:].strip().split()
+            if len(args) != 3:
+                error(lines[i], "Usage: ACCOUNTCREATE username password ok_var")
+                i += 1
+                continue
+            username = str(eval_value(args[0])); password = str(eval_value(args[1])); ok_var = args[2]
+            accounts = game_load_accounts()
+            if username in accounts:
+                variables[ok_var] = False
+            else:
+                accounts[username] = {"password": password, "data": {}}
+                game_save_accounts(accounts)
+                variables[ok_var] = True
+            i += 1
+            continue
+
+        # ---------------- ACCOUNTLOGIN ----------------
+        if line.startswith("ACCOUNTLOGIN "):
+            args = line[13:].strip().split()
+            if len(args) != 3:
+                error(lines[i], "Usage: ACCOUNTLOGIN username password ok_var")
+                i += 1
+                continue
+            username = str(eval_value(args[0])); password = str(eval_value(args[1])); ok_var = args[2]
+            accounts = game_load_accounts()
+            variables[ok_var] = username in accounts and accounts[username].get("password") == password
+            if variables[ok_var]:
+                variables["current_account"] = username
+            i += 1
+            continue
+
+        # ---------------- ACCOUNTSET ----------------
+        if line.startswith("ACCOUNTSET "):
+            args = line[11:].strip().split(maxsplit=2)
+            if len(args) != 3:
+                error(lines[i], "Usage: ACCOUNTSET username key value")
+                i += 1
+                continue
+            username = str(eval_value(args[0])); key = str(eval_value(args[1])); val = eval_value(args[2])
+            accounts = game_load_accounts()
+            if username not in accounts:
+                accounts[username] = {"password": "", "data": {}}
+            accounts[username].setdefault("data", {})[key] = val
+            game_save_accounts(accounts)
+            i += 1
+            continue
+
+        # ---------------- ACCOUNTGET ----------------
+        if line.startswith("ACCOUNTGET "):
+            args = line[11:].strip().split()
+            if len(args) != 3:
+                error(lines[i], "Usage: ACCOUNTGET username key variable")
+                i += 1
+                continue
+            username = str(eval_value(args[0])); key = str(eval_value(args[1])); target = args[2]
+            accounts = game_load_accounts()
+            variables[target] = accounts.get(username, {}).get("data", {}).get(key, "")
+            i += 1
+            continue
+
+        # ---------------- ACCOUNTDELETE ----------------
+        if line.startswith("ACCOUNTDELETE "):
+            args = line[14:].strip().split()
+            if len(args) != 2:
+                error(lines[i], "Usage: ACCOUNTDELETE username ok_var")
+                i += 1
+                continue
+            username = str(eval_value(args[0])); ok_var = args[1]
+            accounts = game_load_accounts()
+            if username in accounts:
+                del accounts[username]
+                game_save_accounts(accounts)
+                variables[ok_var] = True
+            else:
+                variables[ok_var] = False
+            i += 1
+            continue
+
+        # ---------------- ACCOUNTLIST ----------------
+        if line.startswith("ACCOUNTLIST "):
+            target = line[12:].strip()
+            variables[target] = sorted(list(game_load_accounts().keys()))
+            i += 1
+            continue
+
+        # ---------------- QUESTADD ----------------
+        if line.startswith("QUESTADD "):
+            args = line[9:].strip().split(maxsplit=1)
+            if len(args) != 2:
+                error(lines[i], "Usage: QUESTADD id title")
+                i += 1
+                continue
+            qid = str(eval_value(args[0])); title = str(eval_value(args[1]))
+            quest_store()[qid] = {"title": title, "done": False}
+            i += 1
+            continue
+
+        # ---------------- QUESTDONE ----------------
+        if line.startswith("QUESTDONE "):
+            qid = str(eval_value(line[10:].strip()))
+            quests = quest_store()
+            if qid in quests:
+                quests[qid]["done"] = True
+            i += 1
+            continue
+
+        # ---------------- QUESTSTATUS ----------------
+        if line.startswith("QUESTSTATUS "):
+            args = line[12:].strip().split()
+            if len(args) != 2:
+                error(lines[i], "Usage: QUESTSTATUS id variable")
+                i += 1
+                continue
+            qid = str(eval_value(args[0])); target = args[1]
+            variables[target] = quest_store().get(qid, {}).get("done", False)
+            i += 1
+            continue
+
+        # ---------------- QUESTLIST ----------------
+        if line.startswith("QUESTLIST "):
+            target = line[10:].strip()
+            out = []
+            for qid, q in quest_store().items():
+                out.append(qid + ":" + q.get("title", "") + ":" + ("done" if q.get("done") else "open"))
+            variables[target] = out
+            i += 1
+            continue
+
+        # ---------------- XPADD ----------------
+        if line.startswith("XPADD "):
+            args = line[6:].strip().split()
+            if len(args) != 4:
+                error(lines[i], "Usage: XPADD xp_var level_var amount leveled_var")
+                i += 1
+                continue
+            xp_var, level_var, amount_expr, leveled_var = args
+            xp = int(eval_value(xp_var)) if xp_var in variables else 0
+            level = int(eval_value(level_var)) if level_var in variables else 1
+            xp += int(eval_value(amount_expr))
+            leveled = False
+            while xp >= level * 100:
+                xp -= level * 100
+                level += 1
+                leveled = True
+            variables[xp_var] = xp
+            variables[level_var] = level
+            variables[leveled_var] = leveled
+            i += 1
+            continue
+
+        # ---------------- LEVELINFO ----------------
+        if line.startswith("LEVELINFO "):
+            args = line[10:].strip().split()
+            if len(args) != 3:
+                error(lines[i], "Usage: LEVELINFO xp_var level_var needed_var")
+                i += 1
+                continue
+            xp = int(eval_value(args[0])) if args[0] in variables else 0
+            level = int(eval_value(args[1])) if args[1] in variables else 1
+            variables[args[2]] = max(0, level * 100 - xp)
+            i += 1
+            continue
+
+        # ---------------- SHOPBUY ----------------
+        if line.startswith("SHOPBUY "):
+            args = line[8:].strip().split(maxsplit=4)
+            if len(args) != 5:
+                error(lines[i], "Usage: SHOPBUY gold_var cost item inventory ok_var")
+                i += 1
+                continue
+            gold_var, cost_expr, item_expr, inv_name, ok_var = args
+            gold = int(eval_value(gold_var))
+            cost = int(eval_value(cost_expr))
+            if gold >= cost:
+                if "." in gold_var:
+                    set_path_value(gold_var, gold - cost)
+                else:
+                    variables[gold_var] = gold - cost
+                if inv_name not in variables or not isinstance(variables[inv_name], list):
+                    variables[inv_name] = []
+                variables[inv_name].append(eval_value(item_expr))
+                variables[ok_var] = True
+            else:
+                variables[ok_var] = False
+            i += 1
+            continue
+
+        # ---------------- SHOPSELL ----------------
+        if line.startswith("SHOPSELL "):
+            args = line[9:].strip().split(maxsplit=4)
+            if len(args) != 5:
+                error(lines[i], "Usage: SHOPSELL inventory item price gold_var ok_var")
+                i += 1
+                continue
+            inv_name, item_expr, price_expr, gold_var, ok_var = args
+            item = eval_value(item_expr); price = int(eval_value(price_expr)); inv = variables.get(inv_name, [])
+            if isinstance(inv, list) and item in inv:
+                inv.remove(item)
+                new_gold = int(eval_value(gold_var)) + price
+                if "." in gold_var:
+                    set_path_value(gold_var, new_gold)
+                else:
+                    variables[gold_var] = new_gold
+                variables[ok_var] = True
+            else:
+                variables[ok_var] = False
+            i += 1
+            continue
+
+        # ---------------- ENEMYNEW ----------------
+        if line.startswith("ENEMYNEW "):
+            args = line[9:].strip().split()
+            if len(args) != 6:
+                error(lines[i], "Usage: ENEMYNEW name hp damage x y variable")
+                i += 1
+                continue
+            variables[args[5]] = {"name": str(eval_value(args[0])), "hp": int(eval_value(args[1])), "damage": int(eval_value(args[2])), "x": int(eval_value(args[3])), "y": int(eval_value(args[4])), "state": "idle"}
+            i += 1
+            continue
+
+        # ---------------- ENEMYHIT ----------------
+        if line.startswith("ENEMYHIT "):
+            args = line[9:].strip().split()
+            if len(args) != 3:
+                error(lines[i], "Usage: ENEMYHIT enemy damage dead_var")
+                i += 1
+                continue
+            enemy = variables.get(args[0], {})
+            if isinstance(enemy, dict):
+                enemy["hp"] = int(enemy.get("hp", 0)) - int(eval_value(args[1]))
+                variables[args[2]] = enemy["hp"] <= 0
+            else:
+                variables[args[2]] = True
+            i += 1
+            continue
+
+        # ---------------- ENEMYALIVE ----------------
+        if line.startswith("ENEMYALIVE "):
+            args = line[11:].strip().split()
+            if len(args) != 2:
+                error(lines[i], "Usage: ENEMYALIVE enemy variable")
+                i += 1
+                continue
+            variables[args[1]] = enemy_is_alive(variables.get(args[0], {}))
+            i += 1
+            continue
+
+        # ---------------- ENEMYATTACK ----------------
+        if line.startswith("ENEMYATTACK "):
+            args = line[12:].strip().split()
+            if len(args) != 3:
+                error(lines[i], "Usage: ENEMYATTACK enemy hp_var damage_var")
+                i += 1
+                continue
+            enemy = variables.get(args[0], {})
+            dmg = int(enemy.get("damage", 0)) if isinstance(enemy, dict) else 0
+            current_hp = int(eval_value(args[1]))
+            if "." in args[1]:
+                set_path_value(args[1], current_hp - dmg)
+            else:
+                variables[args[1]] = current_hp - dmg
+            variables[args[2]] = dmg
+            i += 1
+            continue
+
+        # ---------------- ENEMYMOVE ----------------
+        if line.startswith("ENEMYMOVE "):
+            args = line[10:].strip().split()
+            if len(args) != 4:
+                error(lines[i], "Usage: ENEMYMOVE enemy map direction moved_var")
+                i += 1
+                continue
+            enemy = variables.get(args[0], {})
+            mp = game_get_map(args[1])
+            if isinstance(enemy, dict):
+                dx, dy = game_direction_delta(args[2])
+                nx = int(enemy.get("x", 0)) + dx; ny = int(enemy.get("y", 0)) + dy
+                if game_can_move(mp, nx, ny):
+                    enemy["x"] = nx; enemy["y"] = ny; variables[args[3]] = True
+                else:
+                    variables[args[3]] = False
+            else:
+                variables[args[3]] = False
+            i += 1
+            continue
+
+        # ---------------- Multiplayer helpers ----------------
+        if line.startswith("SETUSERNAME "):
+            variables["username"] = str(eval_value(line[12:].strip()))
+            i += 1
+            continue
+
+        if line.startswith("CHATSEND "):
+            name = str(variables.get("username", "Player"))
+            msg = name + ": " + str(eval_value(line[9:].strip()))
+            conns = get_connections()
+            for conn in conns:
+                try:
+                    conn.sendall((msg + "\n").encode())
+                except:
+                    pass
+            i += 1
+            continue
+
+        if line.startswith("CHATRECEIVE "):
+            receive_message(line[12:].strip(), timeout=0.1)
+            i += 1
+            continue
+
+        if line.startswith("LOBBYADD "):
+            if "lobby_players" not in variables or not isinstance(variables.get("lobby_players"), list):
+                variables["lobby_players"] = []
+            name = str(eval_value(line[9:].strip()))
+            if name not in variables["lobby_players"]:
+                variables["lobby_players"].append(name)
+            i += 1
+            continue
+
+        if line.startswith("LOBBYLIST "):
+            variables[line[10:].strip()] = variables.get("lobby_players", [])
+            i += 1
+            continue
+
+        if line.startswith("TURNINIT "):
+            args = line[9:].strip().split()
+            if len(args) != 2:
+                error(lines[i], "Usage: TURNINIT players_array current_var")
+                i += 1
+                continue
+            players = eval_value(args[0])
+            variables["__turn_players__"] = players if isinstance(players, list) else []
+            variables["__turn_index__"] = 0
+            variables[args[1]] = variables["__turn_players__"][0] if variables["__turn_players__"] else ""
+            i += 1
+            continue
+
+        if line.startswith("NEXTTURN "):
+            target = line[9:].strip()
+            players = variables.get("__turn_players__", [])
+            if players:
+                variables["__turn_index__"] = (int(variables.get("__turn_index__", 0)) + 1) % len(players)
+                variables[target] = players[variables["__turn_index__"]]
+            else:
+                variables[target] = ""
+            i += 1
+            continue
+
+        if line.startswith("ISTURN "):
+            args = line[7:].strip().split()
+            if len(args) != 2:
+                error(lines[i], "Usage: ISTURN player result_var")
+                i += 1
+                continue
+            current_players = variables.get("__turn_players__", [])
+            idx = int(variables.get("__turn_index__", 0))
+            current = current_players[idx] if current_players else ""
+            variables[args[1]] = str(eval_value(args[0])) == str(current)
+            i += 1
+            continue
+
+        if line.startswith("RECONNECT "):
+            args = line[10:].strip().split()
+            if len(args) != 3:
+                error(lines[i], "Usage: RECONNECT ip port ok_var")
+                i += 1
+                continue
+            try:
+                if net_socket:
+                    net_socket.close()
+            except:
+                pass
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.connect((str(eval_value(args[0])), int(eval_value(args[1]))))
+                net_socket = s
+                variables[args[2]] = True
+                variables["netok"] = 1
+            except:
+                variables[args[2]] = False
+                variables["netok"] = 0
+            i += 1
+            continue
+
+        if line == "NETINFO":
+            print("Local IP:")
+            print(variables.get("myip", ""))
+            print("netok:")
+            print(variables.get("netok", 0))
+            print("Connected sockets:")
+            print(len(get_connections()))
+            i += 1
+            continue
+
+        if line.startswith("NETREADY "):
+            variables[line[9:].strip()] = len(get_connections()) > 0
+            i += 1
+            continue
+
+
         # ---------------- VERSION ----------------
         if line == "VERSION":
             print("SpyLang " + SPYLANG_VERSION)
@@ -2652,8 +3284,26 @@ def execute(lines):
 # RUN FILE
 # -----------------------------
 def run_file(filename):
-    with open(filename, "r", encoding="utf-8") as f:
-        execute(make_lines(f.readlines(), filename))
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            lines = make_lines(f.readlines(), filename)
+
+        if not syntax_check_lines(lines):
+            return
+
+        execute(lines)
+
+    except SystemExit:
+        raise
+
+    except KeyboardInterrupt:
+        print("SpyLang stopped by user.")
+
+    except Exception as e:
+        print("SpyLang crash recovered")
+        print("Error:", e)
+        if os.environ.get("SPYLANG_DEBUG", "0") == "1":
+            traceback.print_exc()
 
 
 if __name__ == "__main__":

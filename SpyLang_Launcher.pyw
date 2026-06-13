@@ -21,7 +21,7 @@ from pathlib import Path
 
 
 APP_NAME = "SpyLang Launcher"
-APP_VERSION = "v1.7-fixed-input"
+APP_VERSION = "v2.5-editor"
 CONFIG_FOLDER = "configs"
 CONFIG_NAME = "spylang_launcher_config.json"
 
@@ -201,6 +201,8 @@ class SpyLangLauncher(tk.Tk):
         self.ansi_buffer = ""
         self.script_card_widgets = []
         self.selected_script_path = None
+        self.last_error_file = None
+        self.last_error_line = None
 
         self.title(f"{APP_NAME} {APP_VERSION}")
 
@@ -636,6 +638,8 @@ class SpyLangLauncher(tk.Tk):
         self.script_cards_frame.bind("<MouseWheel>", self.on_script_mousewheel)
 
         make_button(inner, "Refresh List", self.refresh_script_list).pack(fill="x", pady=(0, 8))
+        make_button(inner, "Built-in Editor", self.open_builtin_editor).pack(fill="x", pady=(0, 8))
+        make_button(inner, "Open Last Error", self.open_last_error).pack(fill="x", pady=(0, 8))
         make_button(inner, "Open in Notepad", self.open_in_notepad).pack(fill="x", pady=(0, 8))
         make_button(inner, "Open Script Folder", self.open_script_folder).pack(fill="x", pady=(0, 8))
         make_button(inner, "Create Starter File", self.create_starter_file).pack(fill="x")
@@ -739,7 +743,149 @@ class SpyLangLauncher(tk.Tk):
         self.input_entry.focus_set()
         self.input_entry.insert("insert", text)
 
+    def detect_error_location(self, text):
+        try:
+            file_match = re.search(r"File:\s*(.+)", text)
+            line_match = re.search(r"Line:\s*(\d+)", text)
+
+            if file_match:
+                path = file_match.group(1).strip()
+                if path and path != "<script>":
+                    self.last_error_file = Path(path)
+
+            if line_match:
+                self.last_error_line = int(line_match.group(1))
+        except Exception:
+            pass
+
+    def open_last_error(self):
+        if not self.last_error_file or not self.last_error_file.exists():
+            messagebox.showinfo("No error", "No saved SpyLang error location yet.")
+            return
+
+        self.open_builtin_editor(path=self.last_error_file, goto_line=self.last_error_line)
+
+    def open_builtin_editor(self, path=None, goto_line=None):
+        if path is None:
+            current = self.script_var.get().strip()
+            if not current:
+                messagebox.showwarning("No script", "Select a .spy file first.")
+                return
+            path = Path(current)
+
+        if not path.exists():
+            messagebox.showerror("Missing file", "The selected script does not exist.")
+            return
+
+        win = tk.Toplevel(self)
+        win.title("SpyLang Editor - " + path.name)
+        win.geometry("900x650")
+        win.minsize(560, 360)
+        win.configure(bg=THEME["bg"])
+
+        top = tk.Frame(win, bg=THEME["panel"])
+        top.pack(side="top", fill="x")
+
+        title = tk.Label(top, text=str(path), bg=THEME["panel"], fg=THEME["muted"], anchor="w")
+        title.pack(side="left", fill="x", expand=True, padx=10, pady=8)
+
+        editor_wrap = tk.Frame(win, bg=THEME["console"])
+        editor_wrap.pack(side="top", fill="both", expand=True, padx=8, pady=8)
+
+        text = tk.Text(
+            editor_wrap,
+            bg=THEME["console"],
+            fg=THEME["text"],
+            insertbackground=THEME["text"],
+            relief="flat",
+            wrap="none",
+            font=("Cascadia Mono", 11),
+            undo=True,
+            padx=10,
+            pady=10
+        )
+        text.pack(side="left", fill="both", expand=True)
+
+        yscroll = tk.Scrollbar(editor_wrap, orient="vertical", command=text.yview)
+        yscroll.pack(side="right", fill="y")
+        text.configure(yscrollcommand=yscroll.set)
+
+        xscroll = tk.Scrollbar(win, orient="horizontal", command=text.xview)
+        xscroll.pack(side="bottom", fill="x")
+        text.configure(xscrollcommand=xscroll.set)
+
+        try:
+            text.insert("1.0", path.read_text(encoding="utf-8"))
+        except Exception as e:
+            messagebox.showerror("Open failed", str(e))
+            win.destroy()
+            return
+
+        text.tag_configure("cmd", foreground=THEME["accent"])
+        text.tag_configure("str", foreground=THEME["warning"])
+        text.tag_configure("comment", foreground=THEME["muted"])
+        text.tag_configure("errorline", background="#3a1820")
+
+        commands = [
+            "LET", "PRINT", "INPUT", "IF", "ELSEIF", "ELSE", "WHILE", "FOR", "REPEAT", "FOREACH",
+            "FUNC", "CALL", "RETURN", "GLOBAL", "BREAK", "EXIT", "IMPORT", "AICHOICE", "AICHANCE",
+            "AIWEIGHTED", "AIPATH", "DRAWMAP", "GETTILE", "SETTILE", "MOVEPLAYER", "SAVESLOT",
+            "LOADSLOT", "QUESTADD", "XPADD", "SHOPBUY", "ENEMYNEW", "VERSION", "HELP"
+        ]
+
+        def highlight(event=None):
+            text.tag_remove("cmd", "1.0", "end")
+            text.tag_remove("str", "1.0", "end")
+            text.tag_remove("comment", "1.0", "end")
+
+            content = text.get("1.0", "end-1c")
+            for idx, line in enumerate(content.splitlines(), start=1):
+                stripped = line.lstrip()
+                leading = len(line) - len(stripped)
+                first = stripped.split(" ", 1)[0] if stripped else ""
+                if first in commands:
+                    start = f"{idx}.{leading}"
+                    end = f"{idx}.{leading + len(first)}"
+                    text.tag_add("cmd", start, end)
+
+                comment_pos = line.find("#")
+                if comment_pos >= 0:
+                    text.tag_add("comment", f"{idx}.{comment_pos}", f"{idx}.end")
+
+                for match in re.finditer(r'"[^"\\]*(?:\\.[^"\\]*)*"', line):
+                    text.tag_add("str", f"{idx}.{match.start()}", f"{idx}.{match.end()}")
+
+        def save_file():
+            try:
+                path.write_text(text.get("1.0", "end-1c"), encoding="utf-8")
+                self.write_console("Saved: " + str(path) + "\n", "green")
+                self.refresh_script_list()
+            except Exception as e:
+                messagebox.showerror("Save failed", str(e))
+
+        def save_and_run():
+            save_file()
+            self.set_script(path)
+            win.destroy()
+            self.run_embedded()
+
+        make_button(top, "Save", save_file).pack(side="right", padx=4, pady=5)
+        make_button(top, "Save + Run", save_and_run).pack(side="right", padx=4, pady=5)
+        make_button(top, "Close", win.destroy).pack(side="right", padx=4, pady=5)
+
+        text.bind("<KeyRelease>", highlight)
+        highlight()
+
+        if goto_line:
+            line = max(1, int(goto_line))
+            text.tag_add("errorline", f"{line}.0", f"{line}.end")
+            text.mark_set("insert", f"{line}.0")
+            text.see(f"{line}.0")
+
+        text.focus_set()
+
     def write_console(self, text, tag="normal"):
+        self.detect_error_location(text)
         self.console.configure(state="normal")
         self.console.insert("end", text, tag)
         self.console.configure(state="disabled")

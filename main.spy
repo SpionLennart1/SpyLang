@@ -2,16 +2,13 @@ IMPORT debug.spy
 
 FUNC menu {
 PRINT YELLOW "=== SpyLang Starter Menu ==="
-PRINT "1: Stress Test"
-PRINT RED "2: Coming soon"
-PRINT RED "3: Coming soon"
-PRINT RED "4: Coming soon"
+PRINT RED "1: Your .spy"
+PRINT RED "2: Your .spy"
+PRINT RED "3: Your .spy"
+PRINT RED "4: Your .spy"
 PRINT BLUE "5: EXIT"
 INPUT option
-IF option == 1 {
-CALL debug
-}
-ELSEIF option == 5 {
+IF option == 5 {
 EXIT
 }
 }
