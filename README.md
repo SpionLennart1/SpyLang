@@ -2,126 +2,62 @@
 
 SpyLang is an experimental scripting language written in Python.
 
-It is built for learning, terminal programs, small games, RPG demos, offline AI experiments, and simple LAN multiplayer projects.
+It is built for learning, terminal programs, small games, map-based demos, menu-driven programs, and simple LAN multiplayer experiments.
 
-SpyLang has grown from a basic scripting language into a small terminal game framework with arrays, objects, functions, save systems, offline AI, tile maps, quests, shops, enemies, timers, screen drawing, and multiplayer helper commands.
+Current version:
 
----
+```text
+SpyLang v3.0-map-menu-engine-prerelease1
+```
 
-## Current Version
+Status:
 
-**SpyLang v2.5-game-framework-prerelease1**
-
-Status: **Prerelease**
+```text
+Prerelease
+```
 
 ---
 
 ## What Is SpyLang?
 
-SpyLang is a hobby programming language project made for writing simple scripts and terminal games.
+SpyLang is a small hobby scripting language designed to make terminal scripts and simple games easier to write.
 
 Example:
 
 ```spy
-PRINT GREEN "Welcome to SpyLang!"
+PRINT GREEN "Welcome to SpyLang v3!"
 
-LET player = {name:"Agent",stats:{hp:100,level:1},gold:50}
+LET name = "Agent"
+LET hp = 100
 
-PRINT player.name
-PRINT player.stats.hp
+PRINT %name%
+PRINT %hp%
 ```
 
 ---
 
-## Main Features
+## v3.0 Focus
 
-### Core Language
+SpyLang v3 focuses on useful engine tools instead of advertising small variable-helper commands as major features.
 
-* Variables
-* Strings
-* Numbers
-* Booleans
-* Math expressions
-* Conditions
-* Loops
-* Functions
-* Function parameters
-* Return values
-* Global variables
-* Imports
-* Comments
-* Line-number errors
-* Arrays
-* Objects / dictionaries
-* Nested object access
-* Nested object setting
+Main v3 features:
 
-### Game Framework
-
-* Tile maps
-* Player movement
-* Collision checks
-* Tile reading and writing
-* Map transitions
-* Distance checks
-* Inventory helpers
-* Dice rolls
-* Timers
-* Screen drawing
-* Save slots
-* Account saves
-* Quests
-* XP / level system
-* Shops
-* Enemy entity system
-
-### Offline AI
-
-* Random AI choices
-* Percent chances
-* Weighted decisions
-* AI presets
-* AI patrol routes
-* AI chase/flee directions
-* AI names
-* AI dialogue
-* AI personalities
-* AI memory
-
-### Multiplayer Helpers
-
-* Host / connect
-* Send / receive
-* Try receive
-* Receive timeout
-* Ping
-* Broadcast
-* Disconnect
-* Lobby helpers
-* Turn helpers
-* Username helpers
-* Chat message helpers
-* Network status helpers
-
-### Launcher
-
-SpyLang includes a launcher with:
-
-* Embedded console
-* Input bar
-* Copy/paste support
-* Responsive layout
-* Fixed input bar
-* Script list
-* Built-in editor
-* Basic syntax highlighting
-* Error helper tools
+- Improved launcher
+- Console / Editor / Scripts / Settings tabs
+- Better integrated editor
+- Better syntax checking
+- Better error output
+- Map engine tools
+- Map loading and saving
+- Viewports for larger maps
+- Menu system
+- Event system
 
 ---
 
 ## Requirements
 
-You need **Python 3** installed.
+You need Python 3 installed.
 
 Check Python:
 
@@ -137,18 +73,18 @@ python --version
 
 ---
 
-## How To Run SpyLang
+## How To Run
 
-Run a `.spy` file with:
+Run a `.spy` script with:
 
 ```bash
-py spy.py yourfile.spy
+py spy.py your_script.spy
 ```
 
 Example:
 
 ```bash
-py spy.py debug.spy
+py spy.py v3-test.spy
 ```
 
 ---
@@ -168,6 +104,20 @@ spy.py
 ```
 
 Then double-click the launcher.
+
+The v3 launcher includes:
+
+- Console tab
+- Editor tab
+- Scripts tab
+- Settings tab
+- Built-in editor
+- Basic syntax highlighting
+- Script cards
+- Fixed input bar
+- Copy/paste console output
+- Error helper tools
+- Stable Windows taskbar behavior
 
 ---
 
@@ -197,6 +147,7 @@ LET gold = 50
 
 PRINT %name%
 PRINT %hp%
+PRINT %gold%
 ```
 
 ---
@@ -222,6 +173,8 @@ LET c = 4 * 5
 LET d = 10 / 2
 LET e = 10 % 3
 LET f = (5 + 10) * 2
+
+PRINT %f%
 ```
 
 Supported operators:
@@ -240,6 +193,8 @@ Supported operators:
 ## Conditions
 
 ```spy
+LET hp = 100
+
 IF hp > 0 {
     PRINT "Alive"
 }
@@ -249,6 +204,8 @@ ELSE {
 ```
 
 ```spy
+LET score = 75
+
 IF score >= 100 {
     PRINT "Master"
 }
@@ -386,7 +343,7 @@ PRINT LEN inventory
 
 ## Objects
 
-SpyLang supports objects.
+SpyLang supports objects and nested object access.
 
 ```spy
 LET player = {name:"Agent",hp:100,gold:50}
@@ -459,28 +416,125 @@ PRINT %slots%
 
 ---
 
-## Account System
-
-SpyLang v2.5 includes a simple account save system for demos.
+## Terminal / Utility Commands
 
 ```spy
-ACCOUNTCREATE player1 pass123 created
-ACCOUNTLOGIN player1 pass123 login_ok
-
-ACCOUNTSET player1 score 999
-ACCOUNTGET player1 score score
-
-ACCOUNTLIST accounts
-ACCOUNTDELETE player1 deleted
+CLS
+PAUSE
+SLEEP 1
+WAITKEY
+VERSION
 ```
 
-This is for game/demo saves only. It is not meant for real security.
+String helpers:
+
+```spy
+LET upper_name = UPPER "agent"
+LET lower_name = LOWER "AGENT"
+
+IF "SpyLang" CONTAINS "Spy" {
+    PRINT "Found it"
+}
+```
+
+Random number:
+
+```spy
+RANDOM number 1 10
+PRINT %number%
+```
 
 ---
 
-## Tile Maps
+## Map Engine
 
-Create a map:
+SpyLang v3 adds map tools that make map creation easier and reduce repeated code.
+
+### Create A Map
+
+```spy
+MAPFILL 20 10 "." map
+MAPBORDER map "#"
+SETTILE map 1 1 "P"
+
+DRAWMAP map
+```
+
+### Map Rectangle
+
+```spy
+MAPRECT map 5 3 6 4 "#"
+DRAWMAP map
+```
+
+### Map Line
+
+```spy
+MAPLINE map 1 1 10 1 "#"
+DRAWMAP map
+```
+
+### Replace Tiles
+
+```spy
+MAPREPLACE map "." ","
+DRAWMAP map
+```
+
+### Count Tiles
+
+```spy
+MAPCOUNT map "#" wall_count
+PRINT %wall_count%
+```
+
+### Find All Tiles
+
+```spy
+MAPFINDALL map "#" walls
+PRINT %walls%
+```
+
+### Copy And Paste Maps
+
+```spy
+MAPCOPY map backup
+MAPPASTE map backup 0 0
+```
+
+### Viewport
+
+Viewports are useful for large maps.
+
+```spy
+VIEWPORT map 0 0 10 5 view
+DRAWMAP view
+```
+
+### Load And Save Maps
+
+```spy
+SAVEMAP "maps/level1.map" map
+LOADMAP "maps/level1.map" loaded_map
+
+DRAWMAP loaded_map
+```
+
+---
+
+## Existing Tile Commands
+
+```spy
+MAPSIZE map width height
+GETTILE map x y tile
+SETTILE map x y "."
+FINDPOS map "P" px py
+CANMOVE map x y can_move
+MOVEPLAYER map px py "d" moved
+DISTANCE px py ex ey dist
+```
+
+Example:
 
 ```spy
 LET map = [
@@ -490,86 +544,151 @@ LET map = [
 "#.....#",
 "#######"
 ]
-```
 
-Draw the map:
-
-```spy
+FINDPOS map "P" px py
+MOVEPLAYER map px py "d" moved
 DRAWMAP map
 ```
 
-Find positions:
+---
+
+## Menu System
+
+The menu system helps make menus with less code.
+
+### Create And Show A Menu
 
 ```spy
-FINDPOS map "P" px py
-FINDPOS map "E" ex ey
+MENUCREATE main_menu
+MENUADD main_menu "Start Game"
+MENUADD main_menu "Options"
+MENUADD main_menu "Exit"
+
+MENUSHOW main_menu choice
+
+PRINT "Selected:"
+PRINT %choice%
 ```
 
-Read/write tiles:
+### Draw A Menu Without Choosing
 
 ```spy
-GETTILE map px py tile
-SETTILE map px py "."
+MENUDRAW main_menu
 ```
 
-Map size:
+### Count Menu Items
 
 ```spy
-MAPSIZE map width height
+MENUCOUNT main_menu count
+PRINT %count%
 ```
 
-Movement:
+### Clear Menu
 
 ```spy
-MOVEPLAYER map px py "d" moved
+MENUCLEAR main_menu
 ```
 
-Collision check:
+### Select From A List
 
 ```spy
-CANMOVE map 2 1 can_move
+LET difficulties = [Easy,Normal,Hard]
+
+SELECTLIST difficulties choice
+
+PRINT "Difficulty:"
+PRINT %choice%
 ```
 
-Distance:
+### Confirm
 
 ```spy
-DISTANCE px py ex ey dist
+CONFIRM "Are you sure?" result
+
+IF result == true {
+    PRINT "Confirmed"
+}
+ELSE {
+    PRINT "Cancelled"
+}
 ```
 
-Map transition:
+### Prompt
 
 ```spy
-MAPTRANS 3 1 3 1 map_two 1 1 current_map new_x new_y
+PROMPT "Enter your name" player_name
+
+PRINT %player_name%
 ```
 
 ---
 
-## Inventory Helpers
+## Event System
+
+Events are useful for game flags, doors, tutorials, cutscenes, one-time messages, and unlocks.
+
+### Set And Get Event Values
 
 ```spy
-LET inventory = [Potion]
+EVENTSET door_open false
+EVENTGET door_open open
 
-ADDITEM inventory "Key"
-HASITEM inventory "Key" has_key
-COUNTITEM inventory "Key" key_count
-REMOVEITEM inventory "Key" removed
+PRINT %open%
+```
+
+### Check If Event Exists
+
+```spy
+EVENTEXISTS door_open exists
+PRINT %exists%
+```
+
+### Trigger Event
+
+```spy
+TRIGGER intro_done
+EVENTGET intro_done done
+
+PRINT %done%
+```
+
+### One-Time Event
+
+```spy
+EVENTONCE tutorial_message first_time
+
+IF first_time == true {
+    PRINT "This only shows once."
+}
+```
+
+### Clear Event
+
+```spy
+EVENTCLEAR door_open
+```
+
+### Run Function On Trigger
+
+```spy
+FUNC intro {
+    PRINT "Intro started."
+}
+
+ONTRIGGER intro_event intro
 ```
 
 ---
 
-## Dice
+## Screen Drawing
 
 ```spy
-DICE 2 6 roll
-
-PRINT "2d6 roll:"
-PRINT %roll%
-```
-
-The individual rolls are also saved in:
-
-```spy
-roll_rolls
+SCREENCLEAR
+SCREENWRITE 0 0 "HP:"
+SCREENWRITE 4 0 100
+SCREENWRITE 0 1 "Gold:"
+SCREENWRITE 6 1 50
+SCREENRENDER
 ```
 
 ---
@@ -589,233 +708,39 @@ TIMERRESET game_timer
 
 ---
 
-## Screen Drawing
+## Dice
 
 ```spy
-SCREENCLEAR
-SCREENWRITE 0 0 "HP:"
-SCREENWRITE 4 0 100
-SCREENWRITE 0 1 "Gold:"
-SCREENWRITE 6 1 50
-SCREENRENDER
+DICE 2 6 roll
+
+PRINT "2d6 roll:"
+PRINT %roll%
 ```
 
----
-
-## Quest System
-
-```spy
-QUESTADD main "Find the key"
-QUESTSTATUS main done
-
-PRINT %done%
-
-QUESTDONE main
-QUESTSTATUS main done
-
-PRINT %done%
-
-QUESTLIST quests
-```
-
----
-
-## XP / Level System
-
-```spy
-LET xp = 0
-LET level = 1
-
-XPADD xp level 250 leveled
-
-PRINT "XP:"
-PRINT %xp%
-
-PRINT "Level:"
-PRINT %level%
-
-PRINT "Leveled up:"
-PRINT %leveled%
-
-LEVELINFO xp level needed
-PRINT "XP needed:"
-PRINT %needed%
-```
-
----
-
-## Shop System
-
-Buy item:
-
-```spy
-LET gold = 50
-LET inventory = []
-
-SHOPBUY gold 20 "Potion" inventory bought
-
-PRINT %bought%
-PRINT %gold%
-PRINT %inventory%
-```
-
-Sell item:
-
-```spy
-SHOPSELL inventory "Potion" 10 gold sold
-
-PRINT %sold%
-PRINT %gold%
-```
-
----
-
-## Enemy Entity System
-
-Create an enemy:
-
-```spy
-ENEMYNEW Goblin 40 7 3 1 enemy
-```
-
-This creates an object like:
+The individual rolls are also saved in:
 
 ```text
-enemy.name
-enemy.hp
-enemy.damage
-enemy.x
-enemy.y
-```
-
-Hit enemy:
-
-```spy
-ENEMYHIT enemy 15 enemy_dead
-```
-
-Check alive:
-
-```spy
-ENEMYALIVE enemy enemy_alive
-```
-
-Enemy attacks:
-
-```spy
-LET player_hp = 100
-
-ENEMYATTACK enemy player_hp damage_done
-
-PRINT %player_hp%
-PRINT %damage_done%
-```
-
-Enemy movement:
-
-```spy
-ENEMYMOVE enemy map "a" enemy_moved
+roll_rolls
 ```
 
 ---
 
-## Offline AI
-
-### AICHOICE
+## Inventory Helpers
 
 ```spy
-LET moves = [Attack,Shield,Heal]
+LET inventory = [Potion]
 
-AICHOICE moves enemy_move
-
-PRINT %enemy_move%
-```
-
-### AICHANCE
-
-```spy
-AICHANCE 25 crit
-
-IF crit == true {
-    PRINT RED "Critical hit!"
-}
-```
-
-### AIWEIGHTED
-
-```spy
-AIWEIGHTED [Attack:70,Shield:20,Heal:10] move
-
-PRINT %move%
-```
-
-### AIPRESET
-
-```spy
-AIPRESET aggressive move
-AIPRESET defensive move
-AIPRESET boss move
-```
-
-### AIPATH
-
-```spy
-AIPATH enemy_x enemy_y player_x player_y direction
-```
-
-### AICHASE
-
-```spy
-AICHASE enemy_x enemy_y player_x player_y direction
-```
-
-### AIFLEE
-
-```spy
-AIFLEE enemy_x enemy_y player_x player_y direction
-```
-
-### AIPATROL
-
-```spy
-AIPATROL [left,right] guard_path direction
-```
-
-### AIDIALOGUE
-
-```spy
-LET lines = ["Hello agent.","You look suspicious.","Buy something or leave."]
-
-AIDIALOGUE lines npc_line
-
-PRINT %npc_line%
-```
-
-### AINAME
-
-```spy
-AINAME spy npc_name
-PRINT %npc_name%
-```
-
-### AIPERSONALITY
-
-```spy
-AIPERSONALITY funny line
-PRINT %line%
-```
-
-### AI Memory
-
-```spy
-AIREMEMBER hero "Agent"
-AIRECALL hero remembered
-AIFORGET hero
+ADDITEM inventory "Key"
+HASITEM inventory "Key" has_key
+COUNTITEM inventory "Key" key_count
+REMOVEITEM inventory "Key" removed
 ```
 
 ---
 
-## Multiplayer
+## Basic Networking
+
+SpyLang includes basic socket commands for LAN experiments.
 
 Host:
 
@@ -873,64 +798,26 @@ Disconnect:
 DISCONNECT
 ```
 
----
-
-## Multiplayer Helper Commands
-
-Lobby:
-
-```spy
-LOBBYADD Player1
-LOBBYADD Player2
-LOBBYLIST lobby
-```
-
-Turns:
-
-```spy
-TURNINIT lobby current_turn
-ISTURN Player1 is_turn
-NEXTTURN current_turn
-```
-
-Username/chat:
-
-```spy
-SETUSERNAME "Agent"
-GETUSERNAME username
-
-MAKECHAT "Agent" "Hello" chat_msg
-CHATSEND "Hello"
-CHATRECEIVE msg
-```
-
-Network info:
-
-```spy
-NETREADY ready
-NETINFO
-```
-
-Real multiplayer still needs testing on another PC or with another user. Same-PC testing only proves that the script logic and socket basics work.
+Real LAN or internet multiplayer depends on firewall, router, Wi-Fi, and network setup.
 
 ---
 
-## Debug Test
+## v3 Test
 
-The v2.5 debug file tests the new framework features.
-
-Run:
+Run the v3 test script:
 
 ```bash
-py spy.py debug.spy
+py spy.py v3-test.spy
 ```
 
 Expected result:
 
 ```text
-Passed: 39
-Failed: 0
-ALL V2.5 TESTS PASSED
+Passed:
+26
+Failed:
+0
+ALL V3 TESTS PASSED
 ```
 
 ---
@@ -943,13 +830,13 @@ SpyLang/
 ├─ SpyLang_Launcher.pyw
 ├─ README.md
 ├─ LICENSE
-├─ debug.spy
+├─ v3-test.spy
 ├─ examples/
-│  ├─ v2_5_game_framework_demo.spy
-│  ├─ v2_5_mini_rpg.spy
-│  ├─ chat.spy
-│  └─ spy_duel_online.spy
+│  ├─ v3-demo.spy
+│  ├─ map-demo.spy
+│  └─ menu-demo.spy
 ├─ saves/
+├─ maps/
 └─ configs/
 ```
 
@@ -961,16 +848,17 @@ SpyLang is experimental.
 
 It is mainly made for:
 
-* learning
-* terminal games
-* RPG demos
-* LAN multiplayer experiments
-* offline AI game behavior
-* scripting practice
+- learning
+- terminal programs
+- small terminal games
+- map experiments
+- menu-driven scripts
+- LAN multiplayer experiments
+- scripting practice
 
-It is not intended for secure or production use yet.
+It is not intended for production use yet.
 
-Account systems, save systems, and multiplayer systems are for demos and hobby projects.
+Save systems, account/demo systems, and networking systems are for hobby projects and testing.
 
 ---
 

@@ -23,7 +23,7 @@ RETURN_SIGNAL = "__RETURN__"
 BREAK_SIGNAL = "__BREAK__"
 EXIT_SIGNAL = "__EXIT__"
 
-SPYLANG_VERSION = "v2.5-game-framework-prerelease1"
+SPYLANG_VERSION = "v3.0-map-menu-engine-prerelease1"
 
 
 # -----------------------------
@@ -105,6 +105,10 @@ def error(line_obj, message, suggestion=None):
     print("SpyLang error")
     print(f"File: {get_filename(line_obj)}")
     print(f"Line: {get_line_number(line_obj)}")
+    raw_code = get_text(line_obj).strip()
+    if raw_code:
+        print("Code:")
+        print(raw_code)
     print(message)
     if suggestion:
         print(suggestion)
@@ -114,7 +118,7 @@ def suggest_command(cmd):
     commands = [
         'LET', 'PRINT', 'INPUT', 'IF', 'ELSEIF', 'ELSE', 'WHILE', 'FOR', 'REPEAT', 'FOREACH', 'FUNC', 'CALL', 'RETURN', 'GLOBAL', 'BREAK', 'EXIT', 'PUSH', 'POP', 'SET', 'DEL', 'CLEAR', 'SAVEVAR',
         'LOADVAR', 'WRITEFILE', 'READFILE', 'CLS', 'PAUSE', 'SLEEP', 'WAITKEY', 'HOST', 'CONNECT', 'SEND', 'RECEIVE', 'TRYRECEIVE', 'BROADCAST', 'PING', 'DISCONNECT', 'IMPORT', 'AICHOICE', 'AICHANCE', 'AIWEIGHTED', 'AIDECIDE', 'AIREMEMBER', 'AIRECALL', 'AIFORGET', 'AIPATH', 'AISTATE',
-        'AIDIALOGUE', 'AINAME', 'AIPERSONALITY', 'AIROUTE', 'AIPRESET', 'AIPATROL', 'AICHASE', 'AIFLEE', 'DRAWMAP', 'MAPSIZE', 'GETTILE', 'SETTILE', 'FINDPOS', 'CANMOVE', 'MOVEPLAYER', 'DISTANCE', 'MAPTRANS', 'NEWOBJ', 'OBJSET', 'OBJGET', 'OBJHAS', 'OBJDEL', 'OBJKEYS', 'SAVESLOT', 'LOADSLOT',
+        'AIDIALOGUE', 'AINAME', 'AIPERSONALITY', 'AIROUTE', 'AIPRESET', 'AIPATROL', 'AICHASE', 'AIFLEE', 'DRAWMAP', 'MAPSIZE', 'GETTILE', 'SETTILE', 'FINDPOS', 'CANMOVE', 'MOVEPLAYER', 'DISTANCE', 'MAPTRANS', 'LOADMAP', 'SAVEMAP', 'MAPFILL', 'MAPBORDER', 'MAPRECT', 'MAPLINE', 'MAPCOPY', 'MAPPASTE', 'MAPREPLACE', 'MAPCOUNT', 'MAPFINDALL', 'VIEWPORT', 'MENUCREATE', 'MENUADD', 'MENUCLEAR', 'MENUDRAW', 'MENUCOUNT', 'MENUSHOW', 'SELECTLIST', 'CONFIRM', 'PROMPT', 'EVENTSET', 'EVENTGET', 'EVENTCLEAR', 'EVENTEXISTS', 'EVENTONCE', 'TRIGGER', 'ONTRIGGER', 'NEWOBJ', 'OBJSET', 'OBJGET', 'OBJHAS', 'OBJDEL', 'OBJKEYS', 'SAVESLOT', 'LOADSLOT',
         'DELSLOT', 'LISTSLOTS', 'SLOTMENU', 'ACCOUNTCREATE', 'ACCOUNTLOGIN', 'ACCOUNTSET', 'ACCOUNTGET', 'ACCOUNTDELETE', 'ACCOUNTLIST', 'QUESTADD', 'QUESTDONE', 'QUESTSTATUS', 'QUESTLIST', 'XPADD', 'LEVELINFO', 'SHOPBUY', 'SHOPSELL', 'ENEMYNEW', 'ENEMYHIT', 'ENEMYALIVE', 'ENEMYATTACK', 'ENEMYMOVE', 'TIMERSTART', 'TIMERGET', 'TIMERRESET', 'SCREENCLEAR', 'SCREENWRITE', 'SCREENRENDER', 'DICE', 'ADDITEM', 'HASITEM', 'REMOVEITEM', 'COUNTITEM', 'SETUSERNAME', 'CHATSEND', 'CHATRECEIVE', 'LOBBYADD', 'LOBBYLIST', 'TURNINIT', 'NEXTTURN', 'ISTURN', 'RECONNECT', 'NETINFO', 'NETREADY', 'VERSION', 'HELP'
     ]
 
@@ -852,6 +856,144 @@ def game_set_tile_in_map(mp, x, y, tile):
     return True
 
 
+# -----------------------------
+# V3 MAP / MENU / EVENT HELPERS
+# -----------------------------
+def split_command_args(text):
+    args = []
+    current = ""
+    in_quote = False
+    escaped = False
+    depth = 0
+
+    for ch in str(text):
+        if ch == "\\" and in_quote:
+            escaped = not escaped
+            current += ch
+            continue
+        if ch == '"' and not escaped:
+            in_quote = not in_quote
+            current += ch
+            continue
+        escaped = False
+
+        if not in_quote:
+            if ch in "[{(":
+                depth += 1
+            elif ch in "]})" and depth > 0:
+                depth -= 1
+            if ch.isspace() and depth == 0:
+                if current.strip():
+                    args.append(current.strip())
+                    current = ""
+                continue
+        current += ch
+
+    if current.strip():
+        args.append(current.strip())
+    return args
+
+
+def v3_to_int(value, default=0):
+    try:
+        return int(eval_value(str(value)))
+    except:
+        try:
+            return int(value)
+        except:
+            return default
+
+
+def v3_tile(value):
+    tile = str(eval_value(str(value)))
+    return tile[0] if tile else " "
+
+
+def map_normalize(mp):
+    if not isinstance(mp, list):
+        return []
+    return [str("".join(row)) if isinstance(row, list) else str(row) for row in mp]
+
+
+def map_make(width, height, tile):
+    width = max(0, int(width))
+    height = max(0, int(height))
+    tile = str(tile)[0] if str(tile) else " "
+    return [tile * width for _ in range(height)]
+
+
+def map_copy_value(mp):
+    return [str(row) if not isinstance(row, list) else list(row) for row in mp]
+
+
+def map_draw_line(mp, x1, y1, x2, y2, tile):
+    x1 = int(x1); y1 = int(y1); x2 = int(x2); y2 = int(y2)
+    dx = abs(x2 - x1)
+    dy = -abs(y2 - y1)
+    sx = 1 if x1 < x2 else -1
+    sy = 1 if y1 < y2 else -1
+    err = dx + dy
+    x = x1
+    y = y1
+    while True:
+        game_set_tile_in_map(mp, x, y, tile)
+        if x == x2 and y == y2:
+            break
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x += sx
+        if e2 <= dx:
+            err += dx
+            y += sy
+
+
+def menu_store():
+    if "__menus__" not in variables or not isinstance(variables.get("__menus__"), dict):
+        variables["__menus__"] = {}
+    return variables["__menus__"]
+
+
+def event_store():
+    if "__events__" not in variables or not isinstance(variables.get("__events__"), dict):
+        variables["__events__"] = {}
+    return variables["__events__"]
+
+
+def event_once_store():
+    if "__events_once__" not in variables or not isinstance(variables.get("__events_once__"), dict):
+        variables["__events_once__"] = {}
+    return variables["__events_once__"]
+
+
+def render_menu(name):
+    menus = menu_store()
+    items = menus.get(str(name), [])
+    print("==============================")
+    print(str(name))
+    print("==============================")
+    if not items:
+        print("(empty menu)")
+    else:
+        for idx, item in enumerate(items, start=1):
+            print(str(idx) + ") " + str(item))
+
+
+def pick_menu_item(name, choice_text):
+    items = menu_store().get(str(name), [])
+    if not items:
+        return ""
+    try:
+        idx = int(choice_text) - 1
+    except:
+        idx = 0
+    if idx < 0:
+        idx = 0
+    if idx >= len(items):
+        idx = len(items) - 1
+    return items[idx]
+
+
 def game_find_pos(mp, wanted):
     wanted = str(wanted)
 
@@ -967,16 +1109,51 @@ def enemy_is_alive(enemy):
     return isinstance(enemy, dict) and float(enemy.get("hp", 0)) > 0
 
 
+def get_known_commands():
+    return set([
+        'LET', 'PRINT', 'INPUT', 'IF', 'ELSEIF', 'ELSE', 'WHILE', 'FOR', 'REPEAT', 'FOREACH', 'FUNC', 'CALL', 'RETURN', 'GLOBAL',
+        'BREAK', 'EXIT', 'PUSH', 'POP', 'SET', 'DEL', 'CLEAR', 'SAVEVAR', 'LOADVAR', 'WRITEFILE', 'READFILE', 'CLS', 'PAUSE',
+        'SLEEP', 'WAITKEY', 'HOST', 'CONNECT', 'SEND', 'RECEIVE', 'TRYRECEIVE', 'BROADCAST', 'PING', 'DISCONNECT', 'IMPORT',
+        'AICHOICE', 'AICHANCE', 'AIWEIGHTED', 'AIDECIDE', 'AIREMEMBER', 'AIRECALL', 'AIFORGET', 'AIPATH', 'AISTATE',
+        'AIDIALOGUE', 'AINAME', 'AIPERSONALITY', 'AIROUTE', 'AIPRESET', 'AIPATROL', 'AICHASE', 'AIFLEE',
+        'DRAWMAP', 'MAPSIZE', 'GETTILE', 'SETTILE', 'FINDPOS', 'CANMOVE', 'MOVEPLAYER', 'DISTANCE', 'MAPTRANS', 'LOADMAP', 'SAVEMAP', 'MAPFILL', 'MAPBORDER', 'MAPRECT', 'MAPLINE', 'MAPCOPY', 'MAPPASTE', 'MAPREPLACE', 'MAPCOUNT', 'MAPFINDALL', 'VIEWPORT', 'MENUCREATE', 'MENUADD', 'MENUCLEAR', 'MENUDRAW', 'MENUCOUNT', 'MENUSHOW', 'SELECTLIST', 'CONFIRM', 'PROMPT', 'EVENTSET', 'EVENTGET', 'EVENTCLEAR', 'EVENTEXISTS', 'EVENTONCE', 'TRIGGER', 'ONTRIGGER',
+        'LOADMAP', 'SAVEMAP', 'MAPFILL', 'MAPBORDER', 'MAPRECT', 'MAPLINE', 'MAPCOPY', 'MAPPASTE', 'MAPREPLACE',
+        'MAPCOUNT', 'MAPFINDALL', 'VIEWPORT',
+        'MENUCREATE', 'MENUADD', 'MENUCLEAR', 'MENUDRAW', 'MENUCOUNT', 'MENUSHOW', 'SELECTLIST', 'CONFIRM', 'PROMPT',
+        'EVENTSET', 'EVENTGET', 'EVENTCLEAR', 'EVENTEXISTS', 'EVENTONCE', 'TRIGGER', 'ONTRIGGER',
+        'NEWOBJ', 'OBJSET', 'OBJGET', 'OBJHAS', 'OBJDEL', 'OBJKEYS', 'SAVESLOT', 'LOADSLOT', 'DELSLOT', 'LISTSLOTS', 'SLOTMENU',
+        'ACCOUNTCREATE', 'ACCOUNTLOGIN', 'ACCOUNTSET', 'ACCOUNTGET', 'ACCOUNTDELETE', 'ACCOUNTLIST',
+        'QUESTADD', 'QUESTDONE', 'QUESTSTATUS', 'QUESTLIST', 'XPADD', 'LEVELINFO', 'SHOPBUY', 'SHOPSELL',
+        'ENEMYNEW', 'ENEMYHIT', 'ENEMYALIVE', 'ENEMYATTACK', 'ENEMYMOVE',
+        'TIMERSTART', 'TIMERGET', 'TIMERRESET', 'SCREENCLEAR', 'SCREENWRITE', 'SCREENRENDER', 'DICE',
+        'ADDITEM', 'HASITEM', 'REMOVEITEM', 'COUNTITEM', 'SETUSERNAME', 'GETUSERNAME', 'MAKECHAT', 'CHATSEND', 'CHATRECEIVE',
+        'LOBBYADD', 'LOBBYLIST', 'TURNINIT', 'NEXTTURN', 'ISTURN', 'RECONNECT', 'NETINFO', 'NETREADY', 'VERSION', 'HELP'
+    ])
+
+
+def syntax_first_word(stripped):
+    if not stripped:
+        return ""
+    if stripped == "}":
+        return "}"
+    return stripped.split()[0].upper()
+
+
 def syntax_check_lines(lines):
     depth = 0
     ok = True
+    known = get_known_commands()
 
     for line_obj in lines:
         raw = get_text(line_obj)
         text = strip_inline_comment(raw)
+        stripped = text.strip()
+
+        if stripped == "":
+            continue
+
         in_quote = False
         escaped = False
-
         for ch in text:
             if ch == "\\" and in_quote:
                 escaped = not escaped
@@ -989,10 +1166,14 @@ def syntax_check_lines(lines):
             error(line_obj, "Syntax check: missing closing quote.")
             ok = False
 
-        stripped = text.strip()
-
+        # Block checks
         if stripped.endswith("{"):
-            depth += 1
+            first = syntax_first_word(stripped)
+            if first in ["IF", "ELSEIF", "WHILE", "REPEAT", "FOR", "FOREACH", "FUNC"] or first == "ELSE":
+                depth += 1
+            else:
+                error(line_obj, "Syntax check: this line opens a block, but the command is not a block command.", suggest_command(first))
+                ok = False
 
         if stripped == "}":
             depth -= 1
@@ -1000,6 +1181,26 @@ def syntax_check_lines(lines):
                 error(line_obj, "Syntax check: closing brace without opening brace.")
                 ok = False
                 depth = 0
+            continue
+
+        # Skip lines that are clearly pieces of multi-line arrays/maps/objects.
+        if stripped.startswith('"') or stripped.startswith("'") or stripped in ["[", "]", "[", "],", "}", "},"]:
+            continue
+        if stripped.endswith(",") and (stripped.startswith('"') or stripped.startswith("{") or stripped.startswith("[")):
+            continue
+
+        first = syntax_first_word(stripped)
+        if first and first not in known:
+            error(line_obj, f"Syntax check: unknown command: {first}", suggest_command(first))
+            ok = False
+
+        # Simple command-specific header checks
+        if first in ["IF", "ELSEIF", "WHILE", "REPEAT", "FOR", "FOREACH", "FUNC"] and not stripped.endswith("{"):
+            error(line_obj, f"Syntax check: {first} needs an opening brace {{ at the end.")
+            ok = False
+        if first == "ELSE" and stripped != "ELSE {":
+            error(line_obj, "Syntax check: ELSE must be written as: ELSE {")
+            ok = False
 
     if depth > 0:
         print("SpyLang syntax check failed")
@@ -2256,6 +2457,424 @@ def execute(lines):
 
 
 
+
+        # ---------------- V3 LOADMAP ----------------
+        if line.startswith("LOADMAP "):
+            args = split_command_args(line[8:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: LOADMAP file.txt map_var")
+                i += 1
+                continue
+            filename = eval_path_arg(args[0])
+            target = args[1]
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    variables[target] = [row.rstrip("\n") for row in f.readlines()]
+            except Exception as e:
+                variables[target] = []
+                error(lines[i], "LOADMAP failed: " + str(e))
+            i += 1
+            continue
+
+        # ---------------- V3 SAVEMAP ----------------
+        if line.startswith("SAVEMAP "):
+            args = split_command_args(line[8:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: SAVEMAP map file.txt")
+                i += 1
+                continue
+            mp = map_normalize(game_get_map(args[0]))
+            filename = eval_path_arg(args[1])
+            try:
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write("\n".join(mp))
+            except Exception as e:
+                error(lines[i], "SAVEMAP failed: " + str(e))
+            i += 1
+            continue
+
+        # ---------------- V3 MAPFILL ----------------
+        if line.startswith("MAPFILL "):
+            args = split_command_args(line[8:].strip())
+            if len(args) != 4:
+                error(lines[i], "Usage: MAPFILL width height tile map_var")
+                i += 1
+                continue
+            variables[args[3]] = map_make(v3_to_int(args[0]), v3_to_int(args[1]), v3_tile(args[2]))
+            i += 1
+            continue
+
+        # ---------------- V3 MAPBORDER ----------------
+        if line.startswith("MAPBORDER "):
+            args = split_command_args(line[10:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: MAPBORDER map tile")
+                i += 1
+                continue
+            map_name = args[0]
+            mp = game_get_map(map_name)
+            tile = v3_tile(args[1])
+            h = game_height(mp)
+            w = game_width(mp)
+            if h > 0 and w > 0:
+                for x in range(w):
+                    game_set_tile_in_map(mp, x, 0, tile)
+                    game_set_tile_in_map(mp, x, h - 1, tile)
+                for y in range(h):
+                    game_set_tile_in_map(mp, 0, y, tile)
+                    game_set_tile_in_map(mp, w - 1, y, tile)
+            game_set_map(map_name, mp)
+            i += 1
+            continue
+
+        # ---------------- V3 MAPRECT ----------------
+        if line.startswith("MAPRECT "):
+            args = split_command_args(line[8:].strip())
+            if len(args) != 6:
+                error(lines[i], "Usage: MAPRECT map x y width height tile")
+                i += 1
+                continue
+            map_name = args[0]
+            mp = game_get_map(map_name)
+            x0 = v3_to_int(args[1]); y0 = v3_to_int(args[2])
+            w = v3_to_int(args[3]); h = v3_to_int(args[4])
+            tile = v3_tile(args[5])
+            for yy in range(y0, y0 + h):
+                for xx in range(x0, x0 + w):
+                    game_set_tile_in_map(mp, xx, yy, tile)
+            game_set_map(map_name, mp)
+            i += 1
+            continue
+
+        # ---------------- V3 MAPLINE ----------------
+        if line.startswith("MAPLINE "):
+            args = split_command_args(line[8:].strip())
+            if len(args) != 6:
+                error(lines[i], "Usage: MAPLINE map x1 y1 x2 y2 tile")
+                i += 1
+                continue
+            map_name = args[0]
+            mp = game_get_map(map_name)
+            map_draw_line(mp, v3_to_int(args[1]), v3_to_int(args[2]), v3_to_int(args[3]), v3_to_int(args[4]), v3_tile(args[5]))
+            game_set_map(map_name, mp)
+            i += 1
+            continue
+
+        # ---------------- V3 MAPCOPY ----------------
+        if line.startswith("MAPCOPY "):
+            args = split_command_args(line[8:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: MAPCOPY source_map target_map")
+                i += 1
+                continue
+            variables[args[1]] = map_copy_value(game_get_map(args[0]))
+            i += 1
+            continue
+
+        # ---------------- V3 MAPPASTE ----------------
+        if line.startswith("MAPPASTE "):
+            args = split_command_args(line[9:].strip())
+            if len(args) != 4:
+                error(lines[i], "Usage: MAPPASTE target_map source_map x y")
+                i += 1
+                continue
+            target_name = args[0]
+            target = game_get_map(target_name)
+            source = game_get_map(args[1])
+            x0 = v3_to_int(args[2]); y0 = v3_to_int(args[3])
+            for yy, row_value in enumerate(source):
+                row = game_row_to_list(row_value)
+                for xx, tile in enumerate(row):
+                    game_set_tile_in_map(target, x0 + xx, y0 + yy, tile)
+            game_set_map(target_name, target)
+            i += 1
+            continue
+
+        # ---------------- V3 MAPREPLACE ----------------
+        if line.startswith("MAPREPLACE "):
+            args = split_command_args(line[11:].strip())
+            if len(args) != 3:
+                error(lines[i], "Usage: MAPREPLACE map old_tile new_tile")
+                i += 1
+                continue
+            map_name = args[0]
+            mp = game_get_map(map_name)
+            old = v3_tile(args[1]); new = v3_tile(args[2])
+            for y in range(game_height(mp)):
+                row = game_row_to_list(mp[y])
+                for x, tile in enumerate(row):
+                    if str(tile) == old:
+                        row[x] = new
+                mp[y] = game_list_to_row(row, mp[y])
+            game_set_map(map_name, mp)
+            i += 1
+            continue
+
+        # ---------------- V3 MAPCOUNT ----------------
+        if line.startswith("MAPCOUNT "):
+            args = split_command_args(line[9:].strip())
+            if len(args) != 3:
+                error(lines[i], "Usage: MAPCOUNT map tile count_var")
+                i += 1
+                continue
+            mp = game_get_map(args[0])
+            wanted = v3_tile(args[1])
+            count = 0
+            for row_value in mp:
+                for tile in game_row_to_list(row_value):
+                    if str(tile) == wanted:
+                        count += 1
+            variables[args[2]] = count
+            i += 1
+            continue
+
+        # ---------------- V3 MAPFINDALL ----------------
+        if line.startswith("MAPFINDALL "):
+            args = split_command_args(line[11:].strip())
+            if len(args) != 3:
+                error(lines[i], "Usage: MAPFINDALL map tile positions_var")
+                i += 1
+                continue
+            mp = game_get_map(args[0])
+            wanted = v3_tile(args[1])
+            positions = []
+            for y, row_value in enumerate(mp):
+                for x, tile in enumerate(game_row_to_list(row_value)):
+                    if str(tile) == wanted:
+                        positions.append({"x": x, "y": y})
+            variables[args[2]] = positions
+            i += 1
+            continue
+
+        # ---------------- V3 VIEWPORT ----------------
+        if line.startswith("VIEWPORT "):
+            args = split_command_args(line[9:].strip())
+            if len(args) != 6:
+                error(lines[i], "Usage: VIEWPORT map x y width height view_var")
+                i += 1
+                continue
+            mp = map_normalize(game_get_map(args[0]))
+            x0 = v3_to_int(args[1]); y0 = v3_to_int(args[2])
+            w = v3_to_int(args[3]); h = v3_to_int(args[4])
+            view = []
+            for yy in range(y0, y0 + h):
+                row = ""
+                for xx in range(x0, x0 + w):
+                    row += game_get_tile_from_map(mp, xx, yy) or " "
+                view.append(row)
+            variables[args[5]] = view
+            i += 1
+            continue
+
+        # ---------------- V3 MENUCREATE ----------------
+        if line.startswith("MENUCREATE "):
+            name = str(eval_value(line[11:].strip()))
+            menu_store()[name] = []
+            i += 1
+            continue
+
+        # ---------------- V3 MENUADD ----------------
+        if line.startswith("MENUADD "):
+            args = split_command_args(line[8:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: MENUADD menu item")
+                i += 1
+                continue
+            name = str(eval_value(args[0]))
+            item = eval_value(args[1])
+            menus = menu_store()
+            if name not in menus:
+                menus[name] = []
+            menus[name].append(item)
+            i += 1
+            continue
+
+        # ---------------- V3 MENUCLEAR ----------------
+        if line.startswith("MENUCLEAR "):
+            name = str(eval_value(line[10:].strip()))
+            menu_store()[name] = []
+            i += 1
+            continue
+
+        # ---------------- V3 MENUDRAW ----------------
+        if line.startswith("MENUDRAW "):
+            name = str(eval_value(line[9:].strip()))
+            render_menu(name)
+            i += 1
+            continue
+
+        # ---------------- V3 MENUCOUNT ----------------
+        if line.startswith("MENUCOUNT "):
+            args = split_command_args(line[10:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: MENUCOUNT menu count_var")
+                i += 1
+                continue
+            name = str(eval_value(args[0]))
+            variables[args[1]] = len(menu_store().get(name, []))
+            i += 1
+            continue
+
+        # ---------------- V3 MENUSHOW ----------------
+        if line.startswith("MENUSHOW "):
+            args = split_command_args(line[9:].strip())
+            if len(args) not in [2, 4]:
+                error(lines[i], "Usage: MENUSHOW menu choice_var OR MENUSHOW menu choice_var DEFAULT number")
+                i += 1
+                continue
+            name = str(eval_value(args[0]))
+            target = args[1]
+            render_menu(name)
+            if len(args) == 4 and args[2].upper() == "DEFAULT":
+                choice_text = str(eval_value(args[3]))
+            else:
+                choice_text = input("Choose: ").strip()
+            variables[target] = pick_menu_item(name, choice_text)
+            i += 1
+            continue
+
+        # ---------------- V3 SELECTLIST ----------------
+        if line.startswith("SELECTLIST "):
+            args = split_command_args(line[11:].strip())
+            if len(args) not in [2, 4]:
+                error(lines[i], "Usage: SELECTLIST array choice_var OR SELECTLIST array choice_var DEFAULT number")
+                i += 1
+                continue
+            arr = eval_value(args[0])
+            if not isinstance(arr, list):
+                arr = variables.get(args[0], [])
+            if not isinstance(arr, list):
+                arr = []
+            for idx, item in enumerate(arr, start=1):
+                print(str(idx) + ") " + str(item))
+            if len(args) == 4 and args[2].upper() == "DEFAULT":
+                choice_text = str(eval_value(args[3]))
+            else:
+                choice_text = input("Choose: ").strip()
+            try:
+                idx = int(choice_text) - 1
+            except:
+                idx = 0
+            if idx < 0: idx = 0
+            if idx >= len(arr): idx = len(arr) - 1
+            variables[args[1]] = arr[idx] if arr else ""
+            i += 1
+            continue
+
+        # ---------------- V3 CONFIRM ----------------
+        if line.startswith("CONFIRM "):
+            args = split_command_args(line[8:].strip())
+            if len(args) not in [2, 4]:
+                error(lines[i], "Usage: CONFIRM message result_var OR CONFIRM message result_var DEFAULT yes")
+                i += 1
+                continue
+            message = str(eval_value(args[0]))
+            target = args[1]
+            if len(args) == 4 and args[2].upper() == "DEFAULT":
+                answer = str(eval_value(args[3])).lower()
+            else:
+                answer = input(message + " (y/n): ").strip().lower()
+            variables[target] = answer in ["y", "yes", "true", "1"]
+            i += 1
+            continue
+
+        # ---------------- V3 PROMPT ----------------
+        if line.startswith("PROMPT "):
+            args = split_command_args(line[7:].strip())
+            if len(args) not in [2, 4]:
+                error(lines[i], "Usage: PROMPT message result_var OR PROMPT message result_var DEFAULT value")
+                i += 1
+                continue
+            message = str(eval_value(args[0]))
+            target = args[1]
+            if len(args) == 4 and args[2].upper() == "DEFAULT":
+                variables[target] = eval_value(args[3])
+            else:
+                variables[target] = input(message + ": ")
+            i += 1
+            continue
+
+        # ---------------- V3 EVENTSET ----------------
+        if line.startswith("EVENTSET "):
+            args = split_command_args(line[9:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: EVENTSET name value")
+                i += 1
+                continue
+            event_store()[str(eval_value(args[0]))] = eval_value(args[1])
+            i += 1
+            continue
+
+        # ---------------- V3 EVENTGET ----------------
+        if line.startswith("EVENTGET "):
+            args = split_command_args(line[9:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: EVENTGET name result_var")
+                i += 1
+                continue
+            variables[args[1]] = event_store().get(str(eval_value(args[0])), False)
+            i += 1
+            continue
+
+        # ---------------- V3 EVENTCLEAR ----------------
+        if line.startswith("EVENTCLEAR "):
+            name = str(eval_value(line[11:].strip()))
+            event_store().pop(name, None)
+            event_once_store().pop(name, None)
+            i += 1
+            continue
+
+        # ---------------- V3 EVENTEXISTS ----------------
+        if line.startswith("EVENTEXISTS "):
+            args = split_command_args(line[12:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: EVENTEXISTS name result_var")
+                i += 1
+                continue
+            variables[args[1]] = str(eval_value(args[0])) in event_store()
+            i += 1
+            continue
+
+        # ---------------- V3 EVENTONCE ----------------
+        if line.startswith("EVENTONCE "):
+            args = split_command_args(line[10:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: EVENTONCE name result_var")
+                i += 1
+                continue
+            name = str(eval_value(args[0]))
+            once = event_once_store()
+            if once.get(name, False):
+                variables[args[1]] = False
+            else:
+                once[name] = True
+                variables[args[1]] = True
+            i += 1
+            continue
+
+        # ---------------- V3 TRIGGER ----------------
+        if line.startswith("TRIGGER "):
+            name = str(eval_value(line[8:].strip()))
+            event_store()[name] = True
+            i += 1
+            continue
+
+        # ---------------- V3 ONTRIGGER ----------------
+        if line.startswith("ONTRIGGER "):
+            args = split_command_args(line[10:].strip())
+            if len(args) != 2:
+                error(lines[i], "Usage: ONTRIGGER name function")
+                i += 1
+                continue
+            name = str(eval_value(args[0]))
+            func = args[1]
+            if event_store().get(name, False):
+                result = call_function(func, [])
+                if result == EXIT_SIGNAL:
+                    return EXIT_SIGNAL
+            i += 1
+            continue
+
         # ---------------- DRAWMAP ----------------
         if line.startswith("DRAWMAP "):
             mp = game_get_map(line[8:].strip())
@@ -3269,7 +3888,7 @@ def execute(lines):
 
         # ---------------- HELP ----------------
         if line.startswith("HELP"):
-            print('SpyLang commands: LET, PRINT, INPUT, IF, ELSEIF, ELSE, WHILE, FOR, REPEAT, FOREACH, FUNC, CALL, RETURN, GLOBAL, BREAK, EXIT, PUSH, POP, SET, DEL, CLEAR, SAVEVAR, LOADVAR, WRITEFILE, READFILE, CLS, PAUSE, SLEEP, WAITKEY, HOST, CONNECT, SEND, RECEIVE, TRYRECEIVE, BROADCAST, PING, DISCONNECT, IMPORT, AICHOICE, AICHANCE, AIWEIGHTED, AIDECIDE, AIREMEMBER, AIRECALL, AIFORGET, AIPATH, AISTATE, AIDIALOGUE, AINAME, AIPERSONALITY, AIROUTE, DRAWMAP, MAPSIZE, GETTILE, SETTILE, FINDPOS, CANMOVE, MOVEPLAYER, DISTANCE, NEWOBJ, OBJSET, OBJGET, OBJHAS, OBJDEL, OBJKEYS, SAVESLOT, LOADSLOT, DELSLOT, LISTSLOTS, TIMERSTART, TIMERGET, TIMERRESET, SCREENCLEAR, SCREENWRITE, SCREENRENDER, DICE, ADDITEM, HASITEM, REMOVEITEM, COUNTITEM, VERSION, HELP')
+            print('SpyLang commands: LET, PRINT, INPUT, IF, ELSEIF, ELSE, WHILE, FOR, REPEAT, FOREACH, FUNC, CALL, RETURN, GLOBAL, BREAK, EXIT, PUSH, POP, SET, DEL, CLEAR, SAVEVAR, LOADVAR, WRITEFILE, READFILE, CLS, PAUSE, SLEEP, WAITKEY, HOST, CONNECT, SEND, RECEIVE, TRYRECEIVE, BROADCAST, PING, DISCONNECT, IMPORT, AICHOICE, AICHANCE, AIWEIGHTED, AIDECIDE, AIREMEMBER, AIRECALL, AIFORGET, AIPATH, AISTATE, AIDIALOGUE, AINAME, AIPERSONALITY, AIROUTE, DRAWMAP, MAPSIZE, GETTILE, SETTILE, FINDPOS, CANMOVE, MOVEPLAYER, DISTANCE, LOADMAP, SAVEMAP, MAPFILL, MAPBORDER, MAPRECT, MAPLINE, MAPCOPY, MAPPASTE, MAPREPLACE, MAPCOUNT, MAPFINDALL, VIEWPORT, MENUCREATE, MENUADD, MENUCLEAR, MENUDRAW, MENUCOUNT, MENUSHOW, SELECTLIST, CONFIRM, PROMPT, EVENTSET, EVENTGET, EVENTCLEAR, EVENTEXISTS, EVENTONCE, TRIGGER, ONTRIGGER, NEWOBJ, OBJSET, OBJGET, OBJHAS, OBJDEL, OBJKEYS, SAVESLOT, LOADSLOT, DELSLOT, LISTSLOTS, TIMERSTART, TIMERGET, TIMERRESET, SCREENCLEAR, SCREENWRITE, SCREENRENDER, DICE, ADDITEM, HASITEM, REMOVEITEM, COUNTITEM, VERSION, HELP')
             i += 1
             continue
 
