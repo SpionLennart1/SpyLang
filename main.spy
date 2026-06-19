@@ -1,5 +1,3 @@
-IMPORT debug.spy
-
 FUNC menu {
 PRINT YELLOW "=== SpyLang Starter Menu ==="
 PRINT RED "1: Your .spy"
