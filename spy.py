@@ -23,7 +23,7 @@ RETURN_SIGNAL = "__RETURN__"
 BREAK_SIGNAL = "__BREAK__"
 EXIT_SIGNAL = "__EXIT__"
 
-SPYLANG_VERSION = "v3.0-map-menu-engine-prerelease1"
+SPYLANG_VERSION = "v3.5 (2026-06-19)"
 
 
 # -----------------------------
@@ -1753,7 +1753,13 @@ def execute(lines):
 
         # ---------------- CLS ----------------
         if line == "CLS":
-            os.system("cls" if os.name == "nt" else "clear")
+            # In the GUI launcher stdout is captured through a pipe, so os.system("cls")
+            # cannot clear the embedded console. Send a form-feed marker instead;
+            # the launcher interprets it as "clear console".
+            if os.environ.get("SPYLANG_LAUNCHER_CONSOLE") == "1":
+                print("\f", end="", flush=True)
+            else:
+                os.system("cls" if os.name == "nt" else "clear")
             i += 1
             continue
 

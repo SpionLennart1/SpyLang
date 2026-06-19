@@ -1,15 +1,3 @@
-# SpyLang Launcher v3
-# Recommended filename: SpyLang_Launcher.pyw
-#
-# Put this file next to spy.py and double-click it.
-# v3 changes:
-# - Custom dark title bar
-# - Console / Editor / Scripts / Settings tabs
-# - Better integrated editor
-# - Auto-hidden dark scrollbars
-# - Fixed input bar
-# - Click/open last error helper
-
 import json
 import os
 import queue
@@ -25,7 +13,7 @@ from pathlib import Path
 
 
 APP_NAME = "SpyLang Launcher"
-APP_VERSION = "v3.0-launcher-stable"
+APP_VERSION = "v3.5"
 CONFIG_FOLDER = "configs"
 CONFIG_NAME = "spylang_launcher_config.json"
 

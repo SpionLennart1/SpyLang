@@ -1,57 +1,30 @@
 # SpyLang
 
-SpyLang is an experimental scripting language written in Python.
+**Version:** v3.5 (2026-06-19)
 
-It is built for learning, terminal programs, small games, map-based demos, menu-driven programs, and simple LAN multiplayer experiments.
+SpyLang is an experimental scripting language built in Python for learning, terminal programs, small games, map-based demos, menu-driven scripts, and LAN multiplayer experiments.
 
-Current version:
-
-```text
-SpyLang v3.0-map-menu-engine-prerelease1
-```
-
-Status:
-
-```text
-Prerelease
-```
+SpyLang is **source-available**, not open source. You may create and publish your own `.spy` scripts, games, demos, and examples, but the SpyLang interpreter itself may not be redistributed or republished unless the license allows it.
 
 ---
 
-## What Is SpyLang?
+## Current Version
 
-SpyLang is a small hobby scripting language designed to make terminal scripts and simple games easier to write.
-
-Example:
-
-```spy
-PRINT GREEN "Welcome to SpyLang v3!"
-
-LET name = "Agent"
-LET hp = 100
-
-PRINT %name%
-PRINT %hp%
+```text
+v3.5 (2026-06-19)
 ```
 
----
+This version focuses on:
 
-## v3.0 Focus
-
-SpyLang v3 focuses on useful engine tools instead of advertising small variable-helper commands as major features.
-
-Main v3 features:
-
-- Improved launcher
-- Console / Editor / Scripts / Settings tabs
-- Better integrated editor
-- Better syntax checking
-- Better error output
-- Map engine tools
-- Map loading and saving
-- Viewports for larger maps
-- Menu system
-- Event system
+- stable launcher behavior
+- working `CLS` inside the launcher console
+- improved launcher/editor workflow
+- map engine tools
+- menu system
+- event system
+- better syntax checking
+- better error output
+- better support for real 2D terminal games
 
 ---
 
@@ -73,12 +46,12 @@ python --version
 
 ---
 
-## How To Run
+## Running A Script
 
-Run a `.spy` script with:
+Use:
 
 ```bash
-py spy.py your_script.spy
+py spy.py script.spy
 ```
 
 Example:
@@ -87,37 +60,36 @@ Example:
 py spy.py v3-test.spy
 ```
 
----
-
-## Launcher
-
-Recommended launcher file:
+You can also use:
 
 ```text
 SpyLang_Launcher.pyw
 ```
 
-Put it in the same folder as:
+Keep the launcher in the same folder as:
 
 ```text
 spy.py
 ```
 
-Then double-click the launcher.
+---
 
-The v3 launcher includes:
+## Launcher
+
+The v3.5 launcher includes:
 
 - Console tab
 - Editor tab
 - Scripts tab
 - Settings tab
-- Built-in editor
+- Integrated editor
 - Basic syntax highlighting
 - Script cards
 - Fixed input bar
 - Copy/paste console output
 - Error helper tools
 - Stable Windows taskbar behavior
+- Fixed `CLS` behavior inside the launcher console
 
 ---
 
@@ -343,8 +315,6 @@ PRINT LEN inventory
 
 ## Objects
 
-SpyLang supports objects and nested object access.
-
 ```spy
 LET player = {name:"Agent",hp:100,gold:50}
 
@@ -352,7 +322,7 @@ PRINT player.name
 PRINT player.hp
 ```
 
-Nested objects:
+Nested object example:
 
 ```spy
 LET player = {name:"Agent",stats:{hp:100,level:1},gold:50}
@@ -407,16 +377,9 @@ LISTSLOTS slots
 DELSLOT 1
 ```
 
-Save slot menu:
-
-```spy
-SLOTMENU slots
-PRINT %slots%
-```
-
 ---
 
-## Terminal / Utility Commands
+## Utility Commands
 
 ```spy
 CLS
@@ -448,7 +411,7 @@ PRINT %number%
 
 ## Map Engine
 
-SpyLang v3 adds map tools that make map creation easier and reduce repeated code.
+SpyLang includes map tools for terminal games and map-based programs.
 
 ### Create A Map
 
@@ -460,14 +423,14 @@ SETTILE map 1 1 "P"
 DRAWMAP map
 ```
 
-### Map Rectangle
+### Rectangle
 
 ```spy
 MAPRECT map 5 3 6 4 "#"
 DRAWMAP map
 ```
 
-### Map Line
+### Line
 
 ```spy
 MAPLINE map 1 1 10 1 "#"
@@ -504,8 +467,6 @@ MAPPASTE map backup 0 0
 
 ### Viewport
 
-Viewports are useful for large maps.
-
 ```spy
 VIEWPORT map 0 0 10 5 view
 DRAWMAP view
@@ -522,7 +483,7 @@ DRAWMAP loaded_map
 
 ---
 
-## Existing Tile Commands
+## Tile Commands
 
 ```spy
 MAPSIZE map width height
@@ -553,8 +514,6 @@ DRAWMAP map
 ---
 
 ## Menu System
-
-The menu system helps make menus with less code.
 
 ### Create And Show A Menu
 
@@ -592,7 +551,7 @@ MENUCLEAR main_menu
 ### Select From A List
 
 ```spy
-LET difficulties = [Easy,Normal,Hard]
+LET difficulties = [Easy,Medium,Hard,Nightmare]
 
 SELECTLIST difficulties choice
 
@@ -625,9 +584,9 @@ PRINT %player_name%
 
 ## Event System
 
-Events are useful for game flags, doors, tutorials, cutscenes, one-time messages, and unlocks.
+Events are useful for game flags, doors, tutorials, cutscenes, one-time messages, unlocks, and other game logic.
 
-### Set And Get Event Values
+### Set And Get Events
 
 ```spy
 EVENTSET door_open false
@@ -636,7 +595,7 @@ EVENTGET door_open open
 PRINT %open%
 ```
 
-### Check If Event Exists
+### Check If An Event Exists
 
 ```spy
 EVENTEXISTS door_open exists
@@ -802,15 +761,27 @@ Real LAN or internet multiplayer depends on firewall, router, Wi-Fi, and network
 
 ---
 
-## v3 Test
+## Example 2D Game Ideas
 
-Run the v3 test script:
+SpyLang can now handle more than simple dice games or enter-to-roll programs.
 
-```bash
-py spy.py v3-test.spy
-```
+Good project ideas:
 
-Expected result:
+- dungeon crawler
+- key and door puzzle game
+- monster escape game
+- turn-based battle map
+- maze game
+- shop and inventory game
+- LAN chat program
+- LAN turn-based game
+- save-slot RPG prototype
+
+---
+
+## Test Result Example
+
+A successful v3 test showed:
 
 ```text
 Passed:
@@ -830,11 +801,10 @@ SpyLang/
 ├─ SpyLang_Launcher.pyw
 ├─ README.md
 ├─ LICENSE
-├─ v3-test.spy
 ├─ examples/
-│  ├─ v3-demo.spy
 │  ├─ map-demo.spy
-│  └─ menu-demo.spy
+│  ├─ menu-demo.spy
+│  └─ game-demo.spy
 ├─ saves/
 ├─ maps/
 └─ configs/
@@ -864,6 +834,14 @@ Save systems, account/demo systems, and networking systems are for hobby project
 
 ## License
 
-This project is licensed under the MIT License.
+SpyLang uses a custom source-available license.
 
-See the `LICENSE` file for details.
+In general:
+
+- users may create and publish their own `.spy` scripts
+- users may create and publish their own games made as `.spy` files
+- users may share demos and examples they wrote themselves
+- users may not republish or redistribute the SpyLang interpreter itself unless the license allows it
+- users may not publish modified interpreter releases as their own SpyLang version
+
+See the `LICENSE` file for the full terms.
