@@ -2,21 +2,76 @@ SpyLang Source-Available License
 
 Copyright (c) 2026 SpyLang contributors
 
-Permission is granted to download, use, and run the SpyLang interpreter for personal, educational, and project use.
+1. What You May Do
 
-You are not allowed to redistribute, re-upload, republish, sell, sublicense, rebrand, or publish modified versions of the SpyLang interpreter files, including spy.py, unless you have clear written permission from the official SpyLang project owner.
+You may download, use, and run the SpyLang interpreter for personal, educational, and project use.
 
-You are not allowed to:
+You may create, share, publish, and sell your own .spy scripts, games, demos, examples, and projects made with SpyLang.
 
-- redistribute, re-upload, or republish the SpyLang interpreter files, including `spy.py`
-- publish modified versions of the SpyLang interpreter
-- sell, sublicense, or rebrand the SpyLang interpreter
-- claim ownership of SpyLang or the SpyLang interpreter
-- remove this license notice from copies of the project
-- use SpyLang's name, branding, or logo to present your own project as an official SpyLang release
+Your own .spy files belong to you.
 
-You may share `.spy` files that you created yourself. Those `.spy` files belong to their original authors.
 
-SpyLang is provided "as is", without warranty of any kind. The authors are not responsible for damages, data loss, broken scripts, security issues, or any other problems caused by using SpyLang.
+2. SpyLang Interpreter Restrictions
+
+The SpyLang interpreter files include, but are not limited to:
+
+- spy.py
+- SpyLang_Launcher.pyw
+- official SpyLang source files
+- official SpyLang release files
+
+You may not redistribute, re-upload, republish, sell, sublicense, rebrand, or publish modified versions of the SpyLang interpreter files unless you have clear written permission from the official SpyLang project owner.
+
+This means you may not publish your own version of spy.py unless you have clear written permission from the official SpyLang project owner.
+
+
+3. Permission Exceptions
+
+The official SpyLang project owner may give written permission to specific people or projects to redistribute, publish, or modify SpyLang interpreter files.
+
+This permission does not have to be given only to contributors.
+
+A person who receives permission must follow the limits written in that permission.
+
+Unless the permission clearly says otherwise, unofficial or modified versions must not be presented as official SpyLang releases.
+
+
+4. Branding Rules
+
+You may not claim SpyLang as your own.
+
+You may not use the SpyLang name, branding, logo, or project identity in a way that makes an unofficial version look official.
+
+You may not rebrand SpyLang or modified SpyLang interpreter files as your own original language or official SpyLang release unless you have clear written permission from the official SpyLang project owner.
+
+
+5. License Notice
+
+You may not remove this license notice from copies of the SpyLang project or SpyLang interpreter files.
+
+If you are given permission to publish or share SpyLang interpreter files, this license must stay included unless the written permission clearly says otherwise.
+
+
+6. User Scripts And Games
+
+You may publish your own .spy scripts, games, demos, examples, and projects.
+
+You may sell your own .spy scripts, games, demos, examples, and projects.
+
+You do not need permission to publish .spy files that you created yourself.
+
+However, publishing a .spy file does not give you permission to publish the SpyLang interpreter itself.
+
+
+7. No Warranty
+
+SpyLang is provided "as is", without warranty of any kind.
+
+The authors and contributors are not responsible for damages, data loss, broken scripts, security issues, lost work, or any other problems caused by using SpyLang.
+
+
+8. Future License Changes
 
 This license may be changed for future versions of SpyLang.
+
+Older versions stay under the license that was included with that version, unless a newer license clearly says otherwise.
