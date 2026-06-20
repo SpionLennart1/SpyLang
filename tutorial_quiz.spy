@@ -1,0 +1,566 @@
+# SpyLang v3.7 Tutorial Quiz
+# Beginner-friendly learning game for the current SpyLang version.
+# Works as one file. No extra folders needed.
+
+cls
+
+PRINT GREEN "=============================="
+PRINT GREEN "  SPYLANG V3.7 LEARNING GAME"
+PRINT GREEN "=============================="
+PRINT ""
+VERSION
+LOG "Tutorial started"
+
+# v3.7 project info can be printed or saved into an object.
+PROJECTINFO project
+
+PRINT ""
+PRINT "This tutorial teaches the important SpyLang v3.7 commands."
+PRINT "It also has a quiz at the end."
+PRINT ""
+PRINT "New in v3.7: commands are not case-sensitive."
+print "This line uses lower-case print and still works."
+PRINT ""
+PRINT "Script version from PROJECTINFO:"
+PRINT project.version
+PRINT ""
+
+FUNC wait_screen {
+    PRINT ""
+    PRINT YELLOW "Press Enter to continue."
+    PAUSE
+}
+
+LET menu_done = 0
+LET learn = 0
+LET demo = 0
+
+WHILE menu_done == 0 {
+    PRINT "Choose:"
+    PRINT "1 = Learn first, then quiz"
+    PRINT "2 = Go straight to quiz"
+    PRINT "3 = Quick v3.7 command demo, then quiz"
+    INPUT mode
+
+    IF mode == 1 {
+        LET learn = 1
+        LET demo = 0
+        LET menu_done = 1
+    }
+
+    IF mode == 2 {
+        LET learn = 0
+        LET demo = 0
+        LET menu_done = 1
+    }
+
+    IF mode == 3 {
+        LET learn = 0
+        LET demo = 1
+        LET menu_done = 1
+    }
+
+    IF mode != 1 {
+        IF mode != 2 {
+            IF mode != 3 {
+                PRINT RED "Invalid option. Type 1, 2, or 3."
+            }
+        }
+    }
+}
+
+IF demo == 1 {
+    CLS
+    PRINT BLUE "QUICK V3.7 COMMAND DEMO"
+    PRINT ""
+    PRINT "1) Commands can be lower-case now:"
+    let demo_points = 10
+    print "lower-case let and print worked."
+    PRINT %demo_points%
+    PRINT ""
+
+    PRINT "2) PROJECTINFO can store project data:"
+    PROJECTINFO info
+    PRINT info.version
+    PRINT info.imports
+    PRINT ""
+
+    PRINT "3) CONFIGGET can read from an object:"
+    LET tutorial_config = {lesson:"v3.7",difficulty:"beginner",mode:"quiz"}
+    CONFIGGET tutorial_config difficulty config_difficulty DEFAULT "normal"
+    PRINT "Difficulty:"
+    PRINT %config_difficulty%
+    PRINT ""
+
+    PRINT "4) Developer tools can help you debug:"
+    DEBUG "This is a debug message."
+    ASSERT demo_points == 10
+    DUMPVAR demo_points
+    PRINT ""
+
+    PRINT "5) LOG and WARN are clean message helpers:"
+    LOG "Normal log message"
+    WARN "Warning example, not a crash"
+    PRINT ""
+
+    CALL wait_screen
+}
+
+IF learn == 1 {
+    CLS
+    PRINT BLUE "LESSON 1: PRINT AND CASE-INSENSITIVE COMMANDS"
+    PRINT ""
+    PRINT "PRINT shows text on the screen."
+    PRINT "In v3.7, commands are not case-sensitive."
+    PRINT ""
+    PRINT YELLOW "Examples:"
+    PRINT BLUE "PRINT Hello"
+    PRINT BLUE "print Hello"
+    PRINT BLUE "Print Hello"
+    PRINT ""
+    PRINT "Variable names and strings still keep their casing."
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 2: VARIABLES"
+    PRINT ""
+    PRINT "LET creates or changes a variable."
+    PRINT "Use percent signs to print variables inside text."
+    PRINT ""
+    PRINT YELLOW "Example:"
+    PRINT BLUE "LET hp = 100"
+    PRINT BLUE "PRINT %hp%"
+    PRINT ""
+    LET example_hp = 100
+    PRINT "Live example hp: %example_hp%"
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 3: INPUT"
+    PRINT ""
+    PRINT "INPUT lets the player type something."
+    PRINT "SpyLang stores it in a variable."
+    PRINT ""
+    PRINT YELLOW "Example:"
+    PRINT BLUE "INPUT name"
+    PRINT BLUE "PRINT %name%"
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 4: IF / ELSEIF / ELSE"
+    PRINT ""
+    PRINT "IF runs code only when a condition is true."
+    PRINT "ELSEIF checks another condition."
+    PRINT "ELSE runs when nothing above worked."
+    PRINT ""
+    PRINT YELLOW "Example idea:"
+    PRINT BLUE "IF hp > 0 { print Alive } ELSE { print Dead }"
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 5: LOOPS"
+    PRINT ""
+    PRINT "WHILE repeats while a condition is true."
+    PRINT "REPEAT repeats a set amount of times."
+    PRINT "FOR counts from one number to another."
+    PRINT "FOREACH goes through every item in an array."
+    PRINT ""
+    PRINT YELLOW "Example:"
+    PRINT BLUE "FOR i = 1 TO 3 { PRINT %i% }"
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 6: ARRAYS AND OBJECTS"
+    PRINT ""
+    PRINT "Arrays store lists of values. The first item is index 0."
+    PRINT "Objects store named values like player.hp."
+    PRINT ""
+    PRINT YELLOW "Examples:"
+    PRINT BLUE "LET items = [Sword,Shield,Potion]"
+    PRINT BLUE "PRINT items[0]"
+    PRINT BLUE "LET player = {name:Agent,hp:100}"
+    PRINT BLUE "PRINT player.hp"
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 7: FUNCTIONS"
+    PRINT ""
+    PRINT "FUNC creates reusable code."
+    PRINT "CALL runs a function."
+    PRINT "RETURN sends a value back."
+    PRINT "GLOBAL lets a function change an outside variable."
+    PRINT ""
+    PRINT YELLOW "Example idea:"
+    PRINT BLUE "FUNC hello { PRINT Hi }"
+    PRINT BLUE "CALL hello"
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 8: FILES AND SAVES"
+    PRINT ""
+    PRINT "WRITEFILE writes text to a file."
+    PRINT "READFILE reads text."
+    PRINT "SAVEVAR saves a variable."
+    PRINT "LOADVAR loads it again."
+    PRINT ""
+    PRINT "SpyLang v3.6.1+ also creates missing parent folders automatically."
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 9: MAPS, MENUS, AND EVENTS"
+    PRINT ""
+    PRINT "Map commands help make terminal games."
+    PRINT "Menu commands help make choices."
+    PRINT "Event commands store flags like door_open or tutorial_done."
+    PRINT ""
+    PRINT YELLOW "Useful commands:"
+    PRINT BLUE "MAPFILL, MAPBORDER, DRAWMAP"
+    PRINT BLUE "MENUCREATE, MENUADD, MENUSHOW"
+    PRINT BLUE "EVENTSET, EVENTGET, EVENTONCE"
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 10: DEVELOPER TOOLS"
+    PRINT ""
+    PRINT "These make scripts easier to debug."
+    PRINT ""
+    PRINT YELLOW "Commands:"
+    PRINT BLUE "DEBUG message"
+    PRINT BLUE "DUMPVAR variable"
+    PRINT BLUE "DUMPVARS"
+    PRINT BLUE "ASSERT condition"
+    PRINT BLUE "STRICT ON / STRICT OFF"
+    PRINT BLUE "TRACE ON / TRACE OFF"
+    PRINT ""
+    DEBUG "Developer tools are useful."
+    ASSERT 1 == 1
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 11: V3.7 PROJECT COMMANDS"
+    PRINT ""
+    PRINT "INCLUDE loads a module from the modules folder."
+    PRINT "PROJECTINFO shows or stores project information."
+    PRINT "CONFIGLOAD loads a JSON config file."
+    PRINT "CONFIGGET reads values from a config object."
+    PRINT "LOG, WARN, and ERROR print cleaner messages."
+    PRINT ""
+    PRINT YELLOW "Examples:"
+    PRINT BLUE "INCLUDE inventory"
+    PRINT BLUE "PROJECTINFO info"
+    PRINT BLUE "CONFIGGET config difficulty result DEFAULT normal"
+    PRINT ""
+    LET lesson_config = {difficulty:"easy",topic:"project commands"}
+    CONFIGGET lesson_config topic topic_name DEFAULT "unknown"
+    PRINT "CONFIGGET live result: %topic_name%"
+    CALL wait_screen
+
+    CLS
+    PRINT BLUE "LESSON 12: NETWORKING"
+    PRINT ""
+    PRINT "SpyLang can do simple LAN networking."
+    PRINT "Good for chat demos and turn-based experiments."
+    PRINT ""
+    PRINT YELLOW "Basic commands:"
+    PRINT BLUE "HOST 5000"
+    PRINT BLUE "CONNECT 127.0.0.1 5000"
+    PRINT BLUE "SEND hello"
+    PRINT BLUE "RECEIVE msg"
+    PRINT BLUE "DISCONNECT"
+    CALL wait_screen
+}
+
+CLS
+PRINT GREEN "=============================="
+PRINT GREEN "        SPYLANG V3.7 QUIZ"
+PRINT GREEN "=============================="
+PRINT ""
+PRINT "Answer with 1, 2, or 3."
+PRINT ""
+
+LET score = 0
+LET total = 15
+
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 1 of 15"
+PRINT "Which command prints text?"
+PRINT "1 = SAY"
+PRINT "2 = PRINT"
+PRINT "3 = SHOW"
+INPUT ans
+IF ans == 2 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 2 {
+    PRINT RED "Wrong. The answer is PRINT."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 2 of 15"
+PRINT "In v3.7, does lower-case print work?"
+PRINT "1 = Yes"
+PRINT "2 = No"
+PRINT "3 = Only in the launcher"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. Commands are case-insensitive in v3.7."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 3 of 15"
+PRINT "Which command creates or changes a variable?"
+PRINT "1 = VAR"
+PRINT "2 = MAKE"
+PRINT "3 = LET"
+INPUT ans
+IF ans == 3 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 3 {
+    PRINT RED "Wrong. The answer is LET."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 4 of 15"
+PRINT "How do you print a variable called hp?"
+PRINT "1 = PRINT hp"
+PRINT "2 = PRINT %hp%"
+PRINT "3 = SHOW hp"
+INPUT ans
+IF ans == 2 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 2 {
+    PRINT RED "Wrong. Use PRINT %hp%."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 5 of 15"
+PRINT "Which command gets user input?"
+PRINT "1 = INPUT"
+PRINT "2 = ASK"
+PRINT "3 = READ"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. The answer is INPUT."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 6 of 15"
+PRINT "Which block checks a condition?"
+PRINT "1 = IF"
+PRINT "2 = FILE"
+PRINT "3 = HOST"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. IF checks conditions."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 7 of 15"
+PRINT "Which loop repeats while a condition is true?"
+PRINT "1 = REPEAT"
+PRINT "2 = WHILE"
+PRINT "3 = LOOPFOREVER"
+INPUT ans
+IF ans == 2 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 2 {
+    PRINT RED "Wrong. The answer is WHILE."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 8 of 15"
+PRINT "Which command runs a function?"
+PRINT "1 = CALL"
+PRINT "2 = RUNFUNC"
+PRINT "3 = START"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. The answer is CALL."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 9 of 15"
+PRINT "In an array, what index is the first item?"
+PRINT "1 = 1"
+PRINT "2 = 0"
+PRINT "3 = 10"
+INPUT ans
+IF ans == 2 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 2 {
+    PRINT RED "Wrong. Arrays start at 0."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 10 of 15"
+PRINT "Which command loads modules/inventory.spy?"
+PRINT "1 = INCLUDE inventory"
+PRINT "2 = START inventory"
+PRINT "3 = MODULE inventory"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. INCLUDE inventory loads modules/inventory.spy."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 11 of 15"
+PRINT "Which command shows or stores project information?"
+PRINT "1 = PROJECTINFO"
+PRINT "2 = PROJECTOPEN"
+PRINT "3 = FILEINFO"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. The answer is PROJECTINFO."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 12 of 15"
+PRINT "Which command reads a value from a config object?"
+PRINT "1 = CONFIGGET"
+PRINT "2 = CONFIGTAKE"
+PRINT "3 = GETSETTING"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. The answer is CONFIGGET."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 13 of 15"
+PRINT "Which command checks if something should be true while testing?"
+PRINT "1 = ASSERT"
+PRINT "2 = GUESS"
+PRINT "3 = BELIEVE"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. ASSERT checks conditions while testing."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 14 of 15"
+PRINT "Which command prints a debug message?"
+PRINT "1 = DEBUG"
+PRINT "2 = SECRET"
+PRINT "3 = SPY"
+INPUT ans
+IF ans == 1 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 1 {
+    PRINT RED "Wrong. The answer is DEBUG."
+}
+CALL wait_screen
+
+CLS
+PRINT YELLOW "Question 15 of 15"
+PRINT "Which command starts hosting a LAN connection?"
+PRINT "1 = CONNECT"
+PRINT "2 = HOST"
+PRINT "3 = SEND"
+INPUT ans
+IF ans == 2 {
+    PRINT GREEN "Correct!"
+    LET score = score + 1
+}
+IF ans != 2 {
+    PRINT RED "Wrong. The answer is HOST."
+}
+CALL wait_screen
+
+CLS
+PRINT GREEN "=============================="
+PRINT GREEN "          QUIZ DONE"
+PRINT GREEN "=============================="
+PRINT ""
+PRINT "Your score:"
+PRINT %score%
+PRINT "out of %total%"
+PRINT ""
+
+IF score >= 14 {
+    PRINT GREEN "Rank: SpyLang v3.7 Master"
+}
+
+IF score >= 10 {
+    IF score < 14 {
+        PRINT YELLOW "Rank: SpyLang Coder"
+    }
+}
+
+IF score >= 6 {
+    IF score < 10 {
+        PRINT YELLOW "Rank: Learning Agent"
+    }
+}
+
+IF score < 6 {
+    PRINT RED "Rank: Beginner"
+    PRINT "Try learning mode again."
+}
+
+PRINT ""
+PRINT "Saving your result..."
+WRITEFILE "tutorial_results/last_result.txt" "Last SpyLang v3.7 tutorial quiz score: %score% out of %total%"
+SAVEVAR score "tutorial_results/score.spsave"
+PRINT GREEN "Saved to tutorial_results/"
+PRINT ""
+PRINT "Thanks for playing the SpyLang v3.7 Learning Game!"
+LOG "Tutorial finished"
+
+PAUSE

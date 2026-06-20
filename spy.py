@@ -23,7 +23,16 @@ RETURN_SIGNAL = "__RETURN__"
 BREAK_SIGNAL = "__BREAK__"
 EXIT_SIGNAL = "__EXIT__"
 
-SPYLANG_VERSION = "v3.5 (2026-06-19)"
+SPYLANG_VERSION = "v3.7 (2026-06-20)"
+
+STRICT_MODE = False
+TRACE_MODE = False
+ASSERT_PASSED = 0
+ASSERT_FAILED = 0
+
+
+class SpyLangStop(Exception):
+    pass
 
 
 # -----------------------------
@@ -114,12 +123,203 @@ def error(line_obj, message, suggestion=None):
         print(suggestion)
 
 
+def record_error(line_obj, message):
+    variables["error_count"] = int(variables.get("error_count", 0)) + 1
+    variables["last_error"] = str(message)
+    variables["last_error_file"] = get_filename(line_obj)
+    variables["last_error_line"] = get_line_number(line_obj)
+
+
+def runtime_error(line_obj, message, suggestion=None):
+    record_error(line_obj, message)
+    error(line_obj, message, suggestion)
+    if STRICT_MODE:
+        raise SpyLangStop(message)
+
+
+def spy_repr(value):
+    try:
+        return json.dumps(value, ensure_ascii=False)
+    except Exception:
+        return repr(value)
+
+
+def parse_mode(value):
+    mode = str(value).strip().upper()
+    if mode in ["ON", "TRUE", "YES", "1"]:
+        return True
+    if mode in ["OFF", "FALSE", "NO", "0"]:
+        return False
+    return None
+
+
+def is_valid_var_name(name):
+    return re.match(r"^[a-zA-Z_]\w*$", str(name)) is not None
+
+
+def set_status(name, value):
+    variables[name] = value
+
+
+def ensure_parent_dir(path):
+    folder = os.path.dirname(os.path.abspath(path))
+    if folder and not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
+
+
+def current_line_dir(line_obj):
+    current_file = get_filename(line_obj)
+    if current_file and current_file != "<script>":
+        return os.path.dirname(os.path.abspath(current_file))
+    return os.getcwd()
+
+
+def eval_file_arg(value, line_obj=None):
+    filename = eval_path_arg(value)
+    if filename == "":
+        return filename
+    filename = os.path.expanduser(str(filename))
+    if os.path.isabs(filename):
+        return os.path.abspath(filename)
+    base = current_line_dir(line_obj) if line_obj is not None else os.getcwd()
+    return os.path.abspath(os.path.join(base, filename))
+
+
+def interpreter_dir():
+    try:
+        return os.path.dirname(os.path.abspath(__file__))
+    except Exception:
+        return os.getcwd()
+
+
+def module_to_path(module_name):
+    module_name = str(module_name).strip()
+    if module_name == "":
+        return ""
+    if module_name.lower().endswith(".spy") or "/" in module_name or "\\" in module_name:
+        return module_name
+    return os.path.join("modules", module_name + ".spy")
+
+
+def find_spy_file(file, line_obj=None):
+    file = str(file).strip()
+    if file == "":
+        return None
+
+    candidates = []
+    if os.path.isabs(file):
+        candidates.append(file)
+    else:
+        current_dir = current_line_dir(line_obj) if line_obj is not None else os.getcwd()
+        candidates.append(os.path.join(current_dir, file))
+        candidates.append(os.path.join(os.getcwd(), file))
+        candidates.append(os.path.join(interpreter_dir(), file))
+        candidates.append(file)
+
+    seen = set()
+    for candidate in candidates:
+        candidate_abs = os.path.abspath(os.path.expanduser(str(candidate)))
+        if candidate_abs in seen:
+            continue
+        seen.add(candidate_abs)
+        if os.path.isfile(candidate_abs):
+            return candidate_abs
+
+    return None
+
+
+def import_spy_file(line_obj, file, label="IMPORT"):
+    abs_path = find_spy_file(file, line_obj)
+
+    if abs_path is None:
+        if label == "INCLUDE":
+            runtime_error(line_obj, f"INCLUDE error: could not find module: {file}", "Tip: use INCLUDE inventory for modules/inventory.spy, or keep the module next to your project.")
+        else:
+            runtime_error(line_obj, f"IMPORT error: could not find file: {file}", "Tip: use IMPORT \"folder/file.spy\" or keep the imported file next to the current script.")
+        return None
+
+    # SpyLang keeps imports one-time by default to avoid loops and duplicate function definitions.
+    if abs_path not in files_loaded:
+        files_loaded.add(abs_path)
+        variables["imports_loaded"] = len(files_loaded)
+        try:
+            with open(abs_path, "r", encoding="utf-8") as f:
+                imported_lines = make_lines(f.readlines(), abs_path)
+
+            if not syntax_check_lines(imported_lines):
+                runtime_error(line_obj, f"{label} error: syntax check failed in {abs_path}")
+                return None
+
+            result = execute(imported_lines)
+            if result == EXIT_SIGNAL:
+                return EXIT_SIGNAL
+        except SpyLangStop:
+            raise
+        except Exception as e:
+            runtime_error(line_obj, f"{label} error while loading {abs_path}: {e}")
+
+    variables["imports_loaded"] = len(files_loaded)
+    return None
+
+
+def make_project_info():
+    return {
+        "version": SPYLANG_VERSION,
+        "script": variables.get("script_file", ""),
+        "folder": variables.get("script_dir", ""),
+        "imports": len(files_loaded),
+        "errors": variables.get("error_count", 0),
+        "last_error": variables.get("last_error", ""),
+        "strict": bool(STRICT_MODE),
+        "trace": bool(TRACE_MODE),
+        "launcher": os.environ.get("SPYLANG_LAUNCHER_CONSOLE") == "1"
+    }
+
+
+def print_project_info():
+    info = make_project_info()
+    print("SpyLang Project Info")
+    print("Version: " + str(info["version"]))
+    print("Script: " + str(info["script"]))
+    print("Folder: " + str(info["folder"]))
+    print("Imports loaded: " + str(info["imports"]))
+    print("Errors: " + str(info["errors"]))
+    print("Strict: " + str(info["strict"]))
+    print("Trace: " + str(info["trace"]))
+    print("Launcher mode: " + str(info["launcher"]))
+
+
+def config_get_value(data, key, default=""):
+    current = data
+    key = str(key).strip()
+    if key == "":
+        return default
+
+    for part in key.split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        elif isinstance(current, list):
+            try:
+                current = current[int(part)]
+            except Exception:
+                return default
+        else:
+            return default
+
+    return current
+
+
+def print_trace(line_obj):
+    if TRACE_MODE:
+        print(f"[TRACE] {get_filename(line_obj)}:{get_line_number(line_obj)}: {get_text(line_obj).strip()}")
+
+
 def suggest_command(cmd):
     commands = [
         'LET', 'PRINT', 'INPUT', 'IF', 'ELSEIF', 'ELSE', 'WHILE', 'FOR', 'REPEAT', 'FOREACH', 'FUNC', 'CALL', 'RETURN', 'GLOBAL', 'BREAK', 'EXIT', 'PUSH', 'POP', 'SET', 'DEL', 'CLEAR', 'SAVEVAR',
-        'LOADVAR', 'WRITEFILE', 'READFILE', 'CLS', 'PAUSE', 'SLEEP', 'WAITKEY', 'HOST', 'CONNECT', 'SEND', 'RECEIVE', 'TRYRECEIVE', 'BROADCAST', 'PING', 'DISCONNECT', 'IMPORT', 'AICHOICE', 'AICHANCE', 'AIWEIGHTED', 'AIDECIDE', 'AIREMEMBER', 'AIRECALL', 'AIFORGET', 'AIPATH', 'AISTATE',
+        'LOADVAR', 'WRITEFILE', 'READFILE', 'CLS', 'PAUSE', 'SLEEP', 'WAITKEY', 'HOST', 'CONNECT', 'SEND', 'RECEIVE', 'TRYRECEIVE', 'BROADCAST', 'PING', 'DISCONNECT', 'IMPORT', 'IMPORTONCE', 'INCLUDE', 'PROJECTINFO', 'CONFIGLOAD', 'CONFIGGET', 'LOG', 'WARN', 'ERROR', 'DEBUG', 'DUMPVAR', 'DUMPVARS', 'TRACE', 'STRICT', 'ASSERT', 'INCLUDE', 'PROJECTINFO', 'CONFIGLOAD', 'CONFIGGET', 'LOG', 'WARN', 'ERROR', 'AICHOICE', 'AICHANCE', 'AIWEIGHTED', 'AIDECIDE', 'AIREMEMBER', 'AIRECALL', 'AIFORGET', 'AIPATH', 'AISTATE',
         'AIDIALOGUE', 'AINAME', 'AIPERSONALITY', 'AIROUTE', 'AIPRESET', 'AIPATROL', 'AICHASE', 'AIFLEE', 'DRAWMAP', 'MAPSIZE', 'GETTILE', 'SETTILE', 'FINDPOS', 'CANMOVE', 'MOVEPLAYER', 'DISTANCE', 'MAPTRANS', 'LOADMAP', 'SAVEMAP', 'MAPFILL', 'MAPBORDER', 'MAPRECT', 'MAPLINE', 'MAPCOPY', 'MAPPASTE', 'MAPREPLACE', 'MAPCOUNT', 'MAPFINDALL', 'VIEWPORT', 'MENUCREATE', 'MENUADD', 'MENUCLEAR', 'MENUDRAW', 'MENUCOUNT', 'MENUSHOW', 'SELECTLIST', 'CONFIRM', 'PROMPT', 'EVENTSET', 'EVENTGET', 'EVENTCLEAR', 'EVENTEXISTS', 'EVENTONCE', 'TRIGGER', 'ONTRIGGER', 'NEWOBJ', 'OBJSET', 'OBJGET', 'OBJHAS', 'OBJDEL', 'OBJKEYS', 'SAVESLOT', 'LOADSLOT',
-        'DELSLOT', 'LISTSLOTS', 'SLOTMENU', 'ACCOUNTCREATE', 'ACCOUNTLOGIN', 'ACCOUNTSET', 'ACCOUNTGET', 'ACCOUNTDELETE', 'ACCOUNTLIST', 'QUESTADD', 'QUESTDONE', 'QUESTSTATUS', 'QUESTLIST', 'XPADD', 'LEVELINFO', 'SHOPBUY', 'SHOPSELL', 'ENEMYNEW', 'ENEMYHIT', 'ENEMYALIVE', 'ENEMYATTACK', 'ENEMYMOVE', 'TIMERSTART', 'TIMERGET', 'TIMERRESET', 'SCREENCLEAR', 'SCREENWRITE', 'SCREENRENDER', 'DICE', 'ADDITEM', 'HASITEM', 'REMOVEITEM', 'COUNTITEM', 'SETUSERNAME', 'CHATSEND', 'CHATRECEIVE', 'LOBBYADD', 'LOBBYLIST', 'TURNINIT', 'NEXTTURN', 'ISTURN', 'RECONNECT', 'NETINFO', 'NETREADY', 'VERSION', 'HELP'
+        'DELSLOT', 'LISTSLOTS', 'SLOTMENU', 'ACCOUNTCREATE', 'ACCOUNTLOGIN', 'ACCOUNTSET', 'ACCOUNTGET', 'ACCOUNTDELETE', 'ACCOUNTLIST', 'QUESTADD', 'QUESTDONE', 'QUESTSTATUS', 'QUESTLIST', 'XPADD', 'LEVELINFO', 'SHOPBUY', 'SHOPSELL', 'ENEMYNEW', 'ENEMYHIT', 'ENEMYALIVE', 'ENEMYATTACK', 'ENEMYMOVE', 'TIMERSTART', 'TIMERGET', 'TIMERRESET', 'SCREENCLEAR', 'SCREENWRITE', 'SCREENRENDER', 'DICE', 'ADDITEM', 'HASITEM', 'REMOVEITEM', 'COUNTITEM', 'SETUSERNAME', 'CHATSEND', 'CHATRECEIVE', 'LOBBYADD', 'LOBBYLIST', 'TURNINIT', 'NEXTTURN', 'ISTURN', 'RECONNECT', 'NETINFO', 'NETREADY', 'DEBUG', 'DUMPVAR', 'DUMPVARS', 'TRACE', 'STRICT', 'ASSERT', 'IMPORTONCE', 'INCLUDE', 'PROJECTINFO', 'CONFIGLOAD', 'CONFIGGET', 'LOG', 'WARN', 'ERROR', 'VERSION', 'HELP'
     ]
 
     match = difflib.get_close_matches(cmd.upper(), commands, n=1)
@@ -348,15 +548,17 @@ def eval_value(value):
     if re.match(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)+$", value):
         return get_path_value(value)
 
+    value_upper = value.upper()
+
     # string helpers
-    if value.startswith("UPPER "):
+    if value_upper.startswith("UPPER "):
         return str(eval_value(value[6:].strip())).upper()
 
-    if value.startswith("LOWER "):
+    if value_upper.startswith("LOWER "):
         return str(eval_value(value[6:].strip())).lower()
 
     # length
-    if value.startswith("LEN "):
+    if value_upper.startswith("LEN "):
         name = value[4:].strip()
 
         if name in variables and isinstance(variables[name], list):
@@ -368,7 +570,7 @@ def eval_value(value):
         return 0
 
     # random
-    if value.startswith("RANDOM "):
+    if value_upper.startswith("RANDOM "):
         parts = value.split()
 
         if len(parts) == 3:
@@ -377,7 +579,7 @@ def eval_value(value):
             return random.randint(low_num, high_num)
 
     # CALL as value: LET result = CALL add 5 10
-    if value.startswith("CALL "):
+    if value_upper.startswith("CALL "):
         parts = value[5:].strip().split()
         if len(parts) >= 1:
             name = parts[0]
@@ -421,7 +623,7 @@ def eval_value(value):
 def eval_condition(condition):
     condition = strip_inline_comment(condition.strip())
 
-    contains_match = re.match(r"^(.+?)\s+CONTAINS\s+(.+)$", condition)
+    contains_match = re.match(r"^(.+?)\s+CONTAINS\s+(.+)$", condition, flags=re.IGNORECASE)
     if contains_match:
         left = str(eval_value(contains_match.group(1).strip()))
         right = str(eval_value(contains_match.group(2).strip()))
@@ -678,6 +880,15 @@ variables["myip"] = get_local_ip()
 variables["netok"] = 0
 variables["netmsg"] = 0
 variables["netclient"] = -1
+variables["spylang_version"] = SPYLANG_VERSION
+variables["error_count"] = 0
+variables["last_error"] = ""
+variables["last_error_file"] = ""
+variables["last_error_line"] = ""
+variables["imports_loaded"] = 0
+variables["script_file"] = ""
+variables["script_dir"] = os.getcwd()
+variables["launcher_mode"] = 1 if os.environ.get("SPYLANG_LAUNCHER_CONSOLE") == "1" else 0
 
 
 # -----------------------------
@@ -1127,7 +1338,7 @@ def get_known_commands():
         'ENEMYNEW', 'ENEMYHIT', 'ENEMYALIVE', 'ENEMYATTACK', 'ENEMYMOVE',
         'TIMERSTART', 'TIMERGET', 'TIMERRESET', 'SCREENCLEAR', 'SCREENWRITE', 'SCREENRENDER', 'DICE',
         'ADDITEM', 'HASITEM', 'REMOVEITEM', 'COUNTITEM', 'SETUSERNAME', 'GETUSERNAME', 'MAKECHAT', 'CHATSEND', 'CHATRECEIVE',
-        'LOBBYADD', 'LOBBYLIST', 'TURNINIT', 'NEXTTURN', 'ISTURN', 'RECONNECT', 'NETINFO', 'NETREADY', 'VERSION', 'HELP'
+        'LOBBYADD', 'LOBBYLIST', 'TURNINIT', 'NEXTTURN', 'ISTURN', 'RECONNECT', 'NETINFO', 'NETREADY', 'DEBUG', 'DUMPVAR', 'DUMPVARS', 'TRACE', 'STRICT', 'ASSERT', 'IMPORTONCE', 'INCLUDE', 'PROJECTINFO', 'CONFIGLOAD', 'CONFIGGET', 'LOG', 'WARN', 'ERROR', 'VERSION', 'HELP'
     ])
 
 
@@ -1198,7 +1409,7 @@ def syntax_check_lines(lines):
         if first in ["IF", "ELSEIF", "WHILE", "REPEAT", "FOR", "FOREACH", "FUNC"] and not stripped.endswith("{"):
             error(line_obj, f"Syntax check: {first} needs an opening brace {{ at the end.")
             ok = False
-        if first == "ELSE" and stripped != "ELSE {":
+        if first == "ELSE" and stripped.upper() != "ELSE {":
             error(line_obj, "Syntax check: ELSE must be written as: ELSE {")
             ok = False
 
@@ -1214,7 +1425,7 @@ def syntax_check_lines(lines):
 # OFFLINE AI HELPERS
 # -----------------------------
 AI_NAMES = {
-    "spy": ["Agent Shadow", "Silent Viper", "Captain Sneak", "Ghost Falcon", "Lennart Byte", "Agent Midnight", "Cipher Fox"],
+    "spy": ["Agent Shadow", "Silent Viper", "Captain Sneak", "Ghost Falcon", "Cipher Byte", "Agent Midnight", "Cipher Fox"],
     "enemy": ["Goblin Byte", "Captain Bonk", "The Glitch Knight", "Sneaky Bandit", "Dr. Trouble", "Shadow Bot", "The Keyboard Goblin"],
     "robot": ["Unit-404", "ByteBot", "Clank-7", "Circuit Max", "Rusty Prime", "Botrick", "Servo Ghost"],
     "wizard": ["Merlin.exe", "Wandalf", "Professor Spark", "The Lag Mage", "Wizard McBoom", "Arcane Dave"],
@@ -1387,7 +1598,7 @@ def call_function(name, args):
 # EXECUTOR
 # -----------------------------
 def execute(lines):
-    global net_server, net_conn, net_socket, net_clients
+    global net_server, net_conn, net_socket, net_clients, STRICT_MODE, TRACE_MODE, ASSERT_PASSED, ASSERT_FAILED
 
     lines = make_lines(lines)
     i = 0
@@ -1400,24 +1611,27 @@ def execute(lines):
             i += 1
             continue
 
+        print_trace(lines[i])
+        uline = line.upper()
+
         # ignore closing braces at this level
         if line == "}":
             i += 1
             continue
 
         # ---------------- BREAK ----------------
-        if line == "BREAK":
+        if uline == "BREAK":
             return BREAK_SIGNAL
 
         # ---------------- EXIT ----------------
-        if line.startswith("EXIT"):
+        if uline.startswith("EXIT"):
             parts = line.split(maxsplit=1)
             if len(parts) == 2:
                 variables["exitcode"] = eval_value(parts[1])
             return EXIT_SIGNAL
 
         # ---------------- IF / ELSEIF / ELSE ----------------
-        if line.startswith("IF "):
+        if uline.startswith("IF "):
             if "{" not in line:
                 error(lines[i], "Missing { after IF condition")
                 i += 1
@@ -1442,7 +1656,7 @@ def execute(lines):
             i = skip_empty_lines(lines, new_i + 1)
 
             # ELSEIF chain, with blank lines allowed
-            while i < len(lines) and strip_inline_comment(get_text(lines[i]).strip()).startswith("ELSEIF"):
+            while i < len(lines) and strip_inline_comment(get_text(lines[i]).strip()).upper().startswith("ELSEIF"):
                 elseif_line = strip_inline_comment(get_text(lines[i]).strip())
 
                 if "{" not in elseif_line:
@@ -1467,7 +1681,7 @@ def execute(lines):
                 i = skip_empty_lines(lines, new_i + 1)
 
             # ELSE, with blank lines allowed
-            if i < len(lines) and strip_inline_comment(get_text(lines[i]).strip()) == "ELSE {":
+            if i < len(lines) and strip_inline_comment(get_text(lines[i]).strip()).upper() == "ELSE {":
                 block, new_i = extract_block(lines, i + 1)
 
                 if not ran:
@@ -1485,7 +1699,7 @@ def execute(lines):
             continue
 
         # ---------------- WHILE ----------------
-        if line.startswith("WHILE "):
+        if uline.startswith("WHILE "):
             if "{" not in line:
                 error(lines[i], "Missing { after WHILE condition")
                 i += 1
@@ -1508,7 +1722,7 @@ def execute(lines):
             continue
 
         # ---------------- REPEAT ----------------
-        if line.startswith("REPEAT "):
+        if uline.startswith("REPEAT "):
             if "{" not in line:
                 error(lines[i], "Missing { after REPEAT amount")
                 i += 1
@@ -1532,14 +1746,14 @@ def execute(lines):
             continue
 
         # ---------------- FOR ----------------
-        if line.startswith("FOR "):
+        if uline.startswith("FOR "):
             if "{" not in line:
                 error(lines[i], "Missing { after FOR loop")
                 i += 1
                 continue
 
             header = line[4:].split("{", 1)[0].strip()
-            match = re.match(r"^([a-zA-Z_]\w*)\s*=\s*(.+?)\s+TO\s+(.+?)(?:\s+STEP\s+(.+))?$", header)
+            match = re.match(r"^([a-zA-Z_]\w*)\s*=\s*(.+?)\s+TO\s+(.+?)(?:\s+STEP\s+(.+))?$", header, flags=re.IGNORECASE)
 
             if not match:
                 error(lines[i], "Invalid FOR syntax. Use: FOR i = 1 TO 10 {")
@@ -1574,7 +1788,7 @@ def execute(lines):
             continue
 
         # ---------------- FOREACH ----------------
-        if line.startswith("FOREACH "):
+        if uline.startswith("FOREACH "):
             if "{" not in line:
                 error(lines[i], "Missing { after FOREACH")
                 i += 1
@@ -1611,7 +1825,7 @@ def execute(lines):
             continue
 
         # ---------------- FUNC ----------------
-        if line.startswith("FUNC "):
+        if uline.startswith("FUNC "):
             if "{" not in line:
                 error(lines[i], "Missing { after FUNC header")
                 i += 1
@@ -1634,7 +1848,7 @@ def execute(lines):
             continue
 
         # ---------------- GLOBAL ----------------
-        if line.startswith("GLOBAL "):
+        if uline.startswith("GLOBAL "):
             names = line[7:].replace(",", " ").split()
 
             if "__global_names__" not in variables:
@@ -1648,7 +1862,7 @@ def execute(lines):
             continue
 
         # ---------------- PUSH ----------------
-        if line.startswith("PUSH "):
+        if uline.startswith("PUSH "):
             parts = line.split(maxsplit=2)
 
             if len(parts) == 3:
@@ -1664,7 +1878,7 @@ def execute(lines):
             continue
 
         # ---------------- POP ----------------
-        if line.startswith("POP "):
+        if uline.startswith("POP "):
             arr_name = line[4:].strip()
 
             if arr_name in variables and isinstance(variables[arr_name], list):
@@ -1675,7 +1889,7 @@ def execute(lines):
             continue
 
         # ---------------- SET array[index] value / SET object.key value ----------------
-        if line.startswith("SET "):
+        if uline.startswith("SET "):
             object_set_match = re.match(r"^SET\s+([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)+)\s+(.+)$", line)
 
             if object_set_match:
@@ -1709,7 +1923,7 @@ def execute(lines):
             continue
 
         # ---------------- DEL ----------------
-        if line.startswith("DEL "):
+        if uline.startswith("DEL "):
             name = line[4:].strip()
 
             if name in variables:
@@ -1719,7 +1933,7 @@ def execute(lines):
             continue
 
         # ---------------- CLEAR ----------------
-        if line.startswith("CLEAR "):
+        if uline.startswith("CLEAR "):
             name = line[6:].strip()
 
             if name in variables and isinstance(variables[name], list):
@@ -1729,7 +1943,7 @@ def execute(lines):
             continue
 
         # ---------------- CALL ----------------
-        if line.startswith("CALL "):
+        if uline.startswith("CALL "):
             parts = line[5:].strip().split()
 
             if len(parts) >= 1:
@@ -1744,33 +1958,38 @@ def execute(lines):
             continue
 
         # ---------------- RETURN ----------------
-        if line.startswith("RETURN"):
-            if line == "RETURN":
+        if uline.startswith("RETURN"):
+            if uline == "RETURN":
                 variables["__return__"] = ""
             else:
                 variables["__return__"] = eval_value(line[7:].strip())
             return RETURN_SIGNAL
 
         # ---------------- CLS ----------------
-        if line == "CLS":
+        if uline == "CLS":
             # In the GUI launcher stdout is captured through a pipe, so os.system("cls")
             # cannot clear the embedded console. Send a form-feed marker instead;
             # the launcher interprets it as "clear console".
             if os.environ.get("SPYLANG_LAUNCHER_CONSOLE") == "1":
                 print("\f", end="", flush=True)
+            elif os.name == "nt":
+                os.system("cls")
+            elif os.environ.get("TERM"):
+                os.system("clear")
             else:
-                os.system("cls" if os.name == "nt" else "clear")
+                # Useful for tests and embedded consoles without a TERM value.
+                print("\n" * 3, end="")
             i += 1
             continue
 
         # ---------------- PAUSE ----------------
-        if line == "PAUSE":
+        if uline == "PAUSE":
             input("Press Enter to continue...")
             i += 1
             continue
 
         # ---------------- WAITKEY ----------------
-        if line.startswith("WAITKEY"):
+        if uline.startswith("WAITKEY"):
             parts = line.split()
             key = read_key()
 
@@ -1781,14 +2000,14 @@ def execute(lines):
             continue
 
         # ---------------- SLEEP ----------------
-        if line.startswith("SLEEP "):
+        if uline.startswith("SLEEP "):
             seconds = eval_value(line[6:].strip())
             time.sleep(float(seconds))
             i += 1
             continue
 
         # ---------------- SAVEVAR ----------------
-        if line.startswith("SAVEVAR "):
+        if uline.startswith("SAVEVAR "):
             parts = line.split(maxsplit=2)
 
             if len(parts) != 3:
@@ -1797,17 +2016,21 @@ def execute(lines):
                 continue
 
             var_name = parts[1]
-            filename = eval_path_arg(parts[2])
+            filename = eval_file_arg(parts[2], lines[i])
             value = variables.get(var_name, "")
 
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(value, f)
+            try:
+                ensure_parent_dir(filename)
+                with open(filename, "w", encoding="utf-8") as f:
+                    json.dump(value, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                runtime_error(lines[i], "SAVEVAR failed: " + str(e))
 
             i += 1
             continue
 
         # ---------------- LOADVAR ----------------
-        if line.startswith("LOADVAR "):
+        if uline.startswith("LOADVAR "):
             parts = line.split(maxsplit=2)
 
             if len(parts) != 3:
@@ -1816,19 +2039,20 @@ def execute(lines):
                 continue
 
             var_name = parts[1]
-            filename = eval_path_arg(parts[2])
+            filename = eval_file_arg(parts[2], lines[i])
 
             try:
                 with open(filename, "r", encoding="utf-8") as f:
                     variables[var_name] = json.load(f)
-            except:
+            except Exception as e:
                 variables[var_name] = ""
+                runtime_error(lines[i], "LOADVAR failed: " + str(e))
 
             i += 1
             continue
 
         # ---------------- WRITEFILE ----------------
-        if line.startswith("WRITEFILE "):
+        if uline.startswith("WRITEFILE "):
             parts = line.split(maxsplit=2)
 
             if len(parts) != 3:
@@ -1836,17 +2060,21 @@ def execute(lines):
                 i += 1
                 continue
 
-            filename = eval_path_arg(parts[1])
+            filename = eval_file_arg(parts[1], lines[i])
             content = str(eval_value(parts[2]))
 
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(content)
+            try:
+                ensure_parent_dir(filename)
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(content)
+            except Exception as e:
+                runtime_error(lines[i], "WRITEFILE failed: " + str(e))
 
             i += 1
             continue
 
         # ---------------- READFILE ----------------
-        if line.startswith("READFILE "):
+        if uline.startswith("READFILE "):
             parts = line.split(maxsplit=2)
 
             if len(parts) != 3:
@@ -1854,20 +2082,21 @@ def execute(lines):
                 i += 1
                 continue
 
-            filename = eval_path_arg(parts[1])
+            filename = eval_file_arg(parts[1], lines[i])
             var_name = parts[2]
 
             try:
                 with open(filename, "r", encoding="utf-8") as f:
                     variables[var_name] = f.read()
-            except:
+            except Exception as e:
                 variables[var_name] = ""
+                runtime_error(lines[i], "READFILE failed: " + str(e))
 
             i += 1
             continue
 
         # ---------------- HOST ----------------
-        if line.startswith("HOST "):
+        if uline.startswith("HOST "):
             try:
                 parts = line.split()
                 port = int(eval_value(parts[1]))
@@ -1923,7 +2152,7 @@ def execute(lines):
             continue
 
         # ---------------- CONNECT ----------------
-        if line.startswith("CONNECT "):
+        if uline.startswith("CONNECT "):
             try:
                 parts = line.split()
 
@@ -1954,7 +2183,7 @@ def execute(lines):
             continue
 
         # ---------------- SEND ----------------
-        if line.startswith("SEND "):
+        if uline.startswith("SEND "):
             try:
                 conn = get_connection()
 
@@ -1978,7 +2207,7 @@ def execute(lines):
             continue
 
         # ---------------- BROADCAST ----------------
-        if line.startswith("BROADCAST "):
+        if uline.startswith("BROADCAST "):
             try:
                 conns = get_connections()
 
@@ -2003,12 +2232,12 @@ def execute(lines):
             continue
 
         # ---------------- RECEIVE / RECEIVE TIMEOUT ----------------
-        if line.startswith("RECEIVE "):
+        if uline.startswith("RECEIVE "):
             parts = line.split()
 
             if len(parts) == 2:
                 receive_message(parts[1], None)
-            elif len(parts) == 4 and parts[2] == "TIMEOUT":
+            elif len(parts) == 4 and parts[2].upper() == "TIMEOUT":
                 receive_message(parts[1], eval_value(parts[3]))
             else:
                 print("Usage: RECEIVE msg OR RECEIVE msg TIMEOUT 5")
@@ -2017,7 +2246,7 @@ def execute(lines):
             continue
 
         # ---------------- TRYRECEIVE ----------------
-        if line.startswith("TRYRECEIVE "):
+        if uline.startswith("TRYRECEIVE "):
             parts = line.split()
 
             if len(parts) == 2:
@@ -2029,7 +2258,7 @@ def execute(lines):
             continue
 
         # ---------------- PING ----------------
-        if line == "PING":
+        if uline == "PING":
             conn = get_connection()
 
             if conn is not None:
@@ -2044,7 +2273,7 @@ def execute(lines):
             continue
 
         # ---------------- DISCONNECT ----------------
-        if line == "DISCONNECT":
+        if uline == "DISCONNECT":
             try:
                 if net_conn is not None:
                     net_conn.close()
@@ -2075,34 +2304,186 @@ def execute(lines):
             i += 1
             continue
 
-        # ---------------- IMPORT ----------------
-        if line.startswith("IMPORT "):
-            file = eval_path_arg(line[7:].strip())
-            current_file = get_filename(lines[i])
-            current_dir = os.path.dirname(os.path.abspath(current_file)) if current_file != "<script>" else os.getcwd()
-            path = file
+        # ---------------- DEBUG ----------------
+        if uline.startswith("DEBUG "):
+            print("[DEBUG] " + str(resolve_text(eval_value(line[6:].strip()))))
+            i += 1
+            continue
 
-            if not os.path.exists(path):
-                path = os.path.join(current_dir, file)
+        # ---------------- DUMPVAR ----------------
+        if uline.startswith("DUMPVAR "):
+            name = line[8:].strip()
+            if name in variables:
+                value = variables.get(name)
+            elif has_path_value(name):
+                value = get_path_value(name)
+            else:
+                value = eval_value(name)
+            print("[DUMPVAR] " + name + " = " + spy_repr(value))
+            i += 1
+            continue
 
-            abs_path = os.path.abspath(path)
+        # ---------------- DUMPVARS ----------------
+        if uline == "DUMPVARS":
+            visible = {k: v for k, v in variables.items() if not str(k).startswith("__")}
+            if not visible:
+                print("[DUMPVARS] No variables.")
+            else:
+                print("[DUMPVARS]")
+                for key in sorted(visible.keys()):
+                    print(str(key) + " = " + spy_repr(visible[key]))
+            i += 1
+            continue
 
-            if abs_path not in files_loaded:
-                files_loaded.add(abs_path)
-                try:
-                    with open(abs_path, "r", encoding="utf-8") as f:
-                        imported_lines = make_lines(f.readlines(), abs_path)
-                        result = execute(imported_lines)
-                        if result == EXIT_SIGNAL:
-                            return EXIT_SIGNAL
-                except Exception as e:
-                    print("IMPORT error:", e)
+        # ---------------- TRACE ----------------
+        if uline.startswith("TRACE "):
+            mode = parse_mode(line[6:].strip())
+            if mode is None:
+                runtime_error(lines[i], "Invalid TRACE mode. Use: TRACE ON or TRACE OFF")
+            else:
+                TRACE_MODE = mode
+                variables["trace"] = 1 if TRACE_MODE else 0
+                print("TRACE " + ("ON" if TRACE_MODE else "OFF"))
+            i += 1
+            continue
 
+        # ---------------- STRICT ----------------
+        if uline.startswith("STRICT "):
+            mode = parse_mode(line[7:].strip())
+            if mode is None:
+                runtime_error(lines[i], "Invalid STRICT mode. Use: STRICT ON or STRICT OFF")
+            else:
+                STRICT_MODE = mode
+                variables["strict"] = 1 if STRICT_MODE else 0
+                print("STRICT " + ("ON" if STRICT_MODE else "OFF"))
+            i += 1
+            continue
+
+        # ---------------- ASSERT ----------------
+        if uline.startswith("ASSERT "):
+            condition = line[7:].strip()
+            try:
+                passed = bool(eval_condition(condition))
+            except Exception as e:
+                passed = False
+                runtime_error(lines[i], "ASSERT error: " + str(e))
+
+            if passed:
+                ASSERT_PASSED += 1
+                variables["assert_passed"] = ASSERT_PASSED
+                variables["assert_failed"] = ASSERT_FAILED
+                print(color_text("[ASSERT PASS] " + condition, "GREEN"))
+            else:
+                ASSERT_FAILED += 1
+                variables["assert_passed"] = ASSERT_PASSED
+                variables["assert_failed"] = ASSERT_FAILED
+                runtime_error(lines[i], "ASSERT failed: " + condition)
+            i += 1
+            continue
+
+        # ---------------- INCLUDE ----------------
+        if uline.startswith("INCLUDE "):
+            raw_arg = line[8:].strip()
+            module_name = eval_path_arg(raw_arg)
+            module_file = module_to_path(module_name)
+            result = import_spy_file(lines[i], module_file, "INCLUDE")
+            if result == EXIT_SIGNAL:
+                return EXIT_SIGNAL
+            i += 1
+            continue
+
+        # ---------------- IMPORT / IMPORTONCE ----------------
+        if uline.startswith("IMPORT ") or uline.startswith("IMPORTONCE "):
+            import_once = uline.startswith("IMPORTONCE ")
+            raw_arg = line[11:].strip() if import_once else line[7:].strip()
+            file = eval_path_arg(raw_arg)
+            result = import_spy_file(lines[i], file, "IMPORTONCE" if import_once else "IMPORT")
+            if result == EXIT_SIGNAL:
+                return EXIT_SIGNAL
+            i += 1
+            continue
+
+        # ---------------- PROJECTINFO ----------------
+        if uline.startswith("PROJECTINFO"):
+            parts = line.split(maxsplit=1)
+            if len(parts) == 1:
+                print_project_info()
+            else:
+                var_name = parts[1].strip()
+                if not is_valid_var_name(var_name):
+                    runtime_error(lines[i], "Invalid PROJECTINFO variable name. Use: PROJECTINFO info")
+                else:
+                    variables[var_name] = make_project_info()
+            i += 1
+            continue
+
+        # ---------------- CONFIGLOAD ----------------
+        if uline.startswith("CONFIGLOAD "):
+            args = split_command_args(line[11:].strip())
+            if len(args) != 2:
+                runtime_error(lines[i], "Usage: CONFIGLOAD file.json variable")
+                i += 1
+                continue
+            filename = eval_file_arg(args[0], lines[i])
+            var_name = args[1].strip()
+            if not is_valid_var_name(var_name):
+                runtime_error(lines[i], "Invalid CONFIGLOAD variable name.")
+                i += 1
+                continue
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                variables[var_name] = data
+            except Exception as e:
+                variables[var_name] = {}
+                runtime_error(lines[i], "CONFIGLOAD error: " + str(e))
+            i += 1
+            continue
+
+        # ---------------- CONFIGGET ----------------
+        if uline.startswith("CONFIGGET "):
+            args = split_command_args(line[10:].strip())
+            if len(args) not in [3, 5] or (len(args) == 5 and args[3].upper() != "DEFAULT"):
+                runtime_error(lines[i], "Usage: CONFIGGET config key result_var OR CONFIGGET config key result_var DEFAULT value")
+                i += 1
+                continue
+            config_name = args[0].strip()
+            key = str(eval_value(args[1]))
+            result_var = args[2].strip()
+            default = eval_value(args[4]) if len(args) == 5 else ""
+            if not is_valid_var_name(result_var):
+                runtime_error(lines[i], "Invalid CONFIGGET result variable name.")
+                i += 1
+                continue
+            data = variables.get(config_name, {})
+            variables[result_var] = config_get_value(data, key, default)
+            i += 1
+            continue
+
+        # ---------------- LOG / WARN / ERROR ----------------
+        if uline.startswith("LOG "):
+            msg = resolve_text(eval_value(line[4:].strip()))
+            print("[LOG] " + str(msg))
+            i += 1
+            continue
+
+        if uline.startswith("WARN "):
+            msg = resolve_text(eval_value(line[5:].strip()))
+            print(color_text("[WARN] " + str(msg), "YELLOW"))
+            i += 1
+            continue
+
+        if uline.startswith("ERROR "):
+            msg = resolve_text(eval_value(line[6:].strip()))
+            record_error(lines[i], str(msg))
+            print(color_text("[ERROR] " + str(msg), "RED"))
+            if STRICT_MODE:
+                raise SpyLangStop(str(msg))
             i += 1
             continue
 
         # ---------------- LET ----------------
-        if line.startswith("LET "):
+        if uline.startswith("LET "):
             if "=" not in line:
                 error(lines[i], "Invalid LET syntax. Use: LET name = value")
                 i += 1
@@ -2111,6 +2492,11 @@ def execute(lines):
             var, value = line[4:].split("=", 1)
             var = var.strip()
             value = value.strip()
+
+            if not is_valid_var_name(var):
+                runtime_error(lines[i], "Invalid variable name. Use letters, numbers, and underscores. The first character cannot be a number.")
+                i += 1
+                continue
 
             # multi-line array
             if value == "[":
@@ -2138,13 +2524,13 @@ def execute(lines):
             continue
 
         # ---------------- PRINT ----------------
-        if line.startswith("PRINT "):
+        if uline.startswith("PRINT "):
             raw = line[6:]
             parts = raw.split(" ", 1)
 
-            if parts[0] in ["RED", "GREEN", "YELLOW", "BLUE"] and len(parts) > 1:
+            if parts[0].upper() in ["RED", "GREEN", "YELLOW", "BLUE"] and len(parts) > 1:
                 text = resolve_text(eval_value(parts[1]))
-                print(color_text(text, parts[0]))
+                print(color_text(text, parts[0].upper()))
             else:
                 print(resolve_text(eval_value(raw)))
 
@@ -2152,7 +2538,7 @@ def execute(lines):
             continue
 
         # ---------------- INPUT ----------------
-        if line.startswith("INPUT "):
+        if uline.startswith("INPUT "):
             var = line[6:].strip()
             val = input("> ")
 
@@ -2170,7 +2556,7 @@ def execute(lines):
 
 
         # ---------------- AICHOICE ----------------
-        if line.startswith("AICHOICE "):
+        if uline.startswith("AICHOICE "):
             args = line[9:].strip().rsplit(" ", 1)
 
             if len(args) != 2:
@@ -2208,7 +2594,7 @@ def execute(lines):
 
 
         # ---------------- AICHANCE ----------------
-        if line.startswith("AICHANCE "):
+        if uline.startswith("AICHANCE "):
             args = line[9:].strip().rsplit(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AICHANCE percent variable")
@@ -2228,7 +2614,7 @@ def execute(lines):
             continue
 
         # ---------------- AIWEIGHTED ----------------
-        if line.startswith("AIWEIGHTED "):
+        if uline.startswith("AIWEIGHTED "):
             args = line[11:].strip().rsplit(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AIWEIGHTED [Attack:70,Heal:30] variable")
@@ -2254,7 +2640,7 @@ def execute(lines):
             continue
 
         # ---------------- AIDECIDE ----------------
-        if line.startswith("AIDECIDE "):
+        if uline.startswith("AIDECIDE "):
             args = line[9:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: AIDECIDE my_hp target_hp variable")
@@ -2272,7 +2658,7 @@ def execute(lines):
             continue
 
         # ---------------- AIREMEMBER ----------------
-        if line.startswith("AIREMEMBER "):
+        if uline.startswith("AIREMEMBER "):
             args = line[11:].strip().split(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AIREMEMBER key value")
@@ -2286,7 +2672,7 @@ def execute(lines):
             continue
 
         # ---------------- AIRECALL ----------------
-        if line.startswith("AIRECALL "):
+        if uline.startswith("AIRECALL "):
             args = line[9:].strip().rsplit(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AIRECALL key variable")
@@ -2306,7 +2692,7 @@ def execute(lines):
             continue
 
         # ---------------- AIFORGET ----------------
-        if line.startswith("AIFORGET "):
+        if uline.startswith("AIFORGET "):
             key = str(eval_value(line[9:].strip()))
             memory = ai_make_memory()
             if key in memory:
@@ -2315,7 +2701,7 @@ def execute(lines):
             continue
 
         # ---------------- AIPATH ----------------
-        if line.startswith("AIPATH "):
+        if uline.startswith("AIPATH "):
             args = line[7:].strip().split()
             if len(args) != 5:
                 error(lines[i], "Usage: AIPATH enemy_x enemy_y player_x player_y variable")
@@ -2333,7 +2719,7 @@ def execute(lines):
             continue
 
         # ---------------- AISTATE ----------------
-        if line.startswith("AISTATE "):
+        if uline.startswith("AISTATE "):
             args = line[8:].strip().rsplit(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AISTATE state variable")
@@ -2359,7 +2745,7 @@ def execute(lines):
             continue
 
         # ---------------- AIDIALOGUE ----------------
-        if line.startswith("AIDIALOGUE "):
+        if uline.startswith("AIDIALOGUE "):
             args = line[11:].strip().rsplit(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AIDIALOGUE array variable")
@@ -2388,7 +2774,7 @@ def execute(lines):
             continue
 
         # ---------------- AINAME ----------------
-        if line.startswith("AINAME "):
+        if uline.startswith("AINAME "):
             args = line[7:].strip().rsplit(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AINAME type variable")
@@ -2411,7 +2797,7 @@ def execute(lines):
             continue
 
         # ---------------- AIPERSONALITY ----------------
-        if line.startswith("AIPERSONALITY "):
+        if uline.startswith("AIPERSONALITY "):
             args = line[14:].strip().rsplit(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AIPERSONALITY personality variable")
@@ -2436,7 +2822,7 @@ def execute(lines):
             continue
 
         # ---------------- AIROUTE ----------------
-        if line.startswith("AIROUTE "):
+        if uline.startswith("AIROUTE "):
             args = line[8:].strip().rsplit(" ", 1)
             if len(args) != 2:
                 error(lines[i], "Usage: AIROUTE array variable")
@@ -2465,13 +2851,13 @@ def execute(lines):
 
 
         # ---------------- V3 LOADMAP ----------------
-        if line.startswith("LOADMAP "):
+        if uline.startswith("LOADMAP "):
             args = split_command_args(line[8:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: LOADMAP file.txt map_var")
                 i += 1
                 continue
-            filename = eval_path_arg(args[0])
+            filename = eval_file_arg(args[0], lines[i])
             target = args[1]
             try:
                 with open(filename, "r", encoding="utf-8") as f:
@@ -2483,15 +2869,16 @@ def execute(lines):
             continue
 
         # ---------------- V3 SAVEMAP ----------------
-        if line.startswith("SAVEMAP "):
+        if uline.startswith("SAVEMAP "):
             args = split_command_args(line[8:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: SAVEMAP map file.txt")
                 i += 1
                 continue
             mp = map_normalize(game_get_map(args[0]))
-            filename = eval_path_arg(args[1])
+            filename = eval_file_arg(args[1], lines[i])
             try:
+                ensure_parent_dir(filename)
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write("\n".join(mp))
             except Exception as e:
@@ -2500,7 +2887,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPFILL ----------------
-        if line.startswith("MAPFILL "):
+        if uline.startswith("MAPFILL "):
             args = split_command_args(line[8:].strip())
             if len(args) != 4:
                 error(lines[i], "Usage: MAPFILL width height tile map_var")
@@ -2511,7 +2898,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPBORDER ----------------
-        if line.startswith("MAPBORDER "):
+        if uline.startswith("MAPBORDER "):
             args = split_command_args(line[10:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: MAPBORDER map tile")
@@ -2534,7 +2921,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPRECT ----------------
-        if line.startswith("MAPRECT "):
+        if uline.startswith("MAPRECT "):
             args = split_command_args(line[8:].strip())
             if len(args) != 6:
                 error(lines[i], "Usage: MAPRECT map x y width height tile")
@@ -2553,7 +2940,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPLINE ----------------
-        if line.startswith("MAPLINE "):
+        if uline.startswith("MAPLINE "):
             args = split_command_args(line[8:].strip())
             if len(args) != 6:
                 error(lines[i], "Usage: MAPLINE map x1 y1 x2 y2 tile")
@@ -2567,7 +2954,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPCOPY ----------------
-        if line.startswith("MAPCOPY "):
+        if uline.startswith("MAPCOPY "):
             args = split_command_args(line[8:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: MAPCOPY source_map target_map")
@@ -2578,7 +2965,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPPASTE ----------------
-        if line.startswith("MAPPASTE "):
+        if uline.startswith("MAPPASTE "):
             args = split_command_args(line[9:].strip())
             if len(args) != 4:
                 error(lines[i], "Usage: MAPPASTE target_map source_map x y")
@@ -2597,7 +2984,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPREPLACE ----------------
-        if line.startswith("MAPREPLACE "):
+        if uline.startswith("MAPREPLACE "):
             args = split_command_args(line[11:].strip())
             if len(args) != 3:
                 error(lines[i], "Usage: MAPREPLACE map old_tile new_tile")
@@ -2617,7 +3004,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPCOUNT ----------------
-        if line.startswith("MAPCOUNT "):
+        if uline.startswith("MAPCOUNT "):
             args = split_command_args(line[9:].strip())
             if len(args) != 3:
                 error(lines[i], "Usage: MAPCOUNT map tile count_var")
@@ -2635,7 +3022,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MAPFINDALL ----------------
-        if line.startswith("MAPFINDALL "):
+        if uline.startswith("MAPFINDALL "):
             args = split_command_args(line[11:].strip())
             if len(args) != 3:
                 error(lines[i], "Usage: MAPFINDALL map tile positions_var")
@@ -2653,7 +3040,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 VIEWPORT ----------------
-        if line.startswith("VIEWPORT "):
+        if uline.startswith("VIEWPORT "):
             args = split_command_args(line[9:].strip())
             if len(args) != 6:
                 error(lines[i], "Usage: VIEWPORT map x y width height view_var")
@@ -2673,14 +3060,14 @@ def execute(lines):
             continue
 
         # ---------------- V3 MENUCREATE ----------------
-        if line.startswith("MENUCREATE "):
+        if uline.startswith("MENUCREATE "):
             name = str(eval_value(line[11:].strip()))
             menu_store()[name] = []
             i += 1
             continue
 
         # ---------------- V3 MENUADD ----------------
-        if line.startswith("MENUADD "):
+        if uline.startswith("MENUADD "):
             args = split_command_args(line[8:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: MENUADD menu item")
@@ -2696,21 +3083,21 @@ def execute(lines):
             continue
 
         # ---------------- V3 MENUCLEAR ----------------
-        if line.startswith("MENUCLEAR "):
+        if uline.startswith("MENUCLEAR "):
             name = str(eval_value(line[10:].strip()))
             menu_store()[name] = []
             i += 1
             continue
 
         # ---------------- V3 MENUDRAW ----------------
-        if line.startswith("MENUDRAW "):
+        if uline.startswith("MENUDRAW "):
             name = str(eval_value(line[9:].strip()))
             render_menu(name)
             i += 1
             continue
 
         # ---------------- V3 MENUCOUNT ----------------
-        if line.startswith("MENUCOUNT "):
+        if uline.startswith("MENUCOUNT "):
             args = split_command_args(line[10:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: MENUCOUNT menu count_var")
@@ -2722,7 +3109,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 MENUSHOW ----------------
-        if line.startswith("MENUSHOW "):
+        if uline.startswith("MENUSHOW "):
             args = split_command_args(line[9:].strip())
             if len(args) not in [2, 4]:
                 error(lines[i], "Usage: MENUSHOW menu choice_var OR MENUSHOW menu choice_var DEFAULT number")
@@ -2740,7 +3127,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 SELECTLIST ----------------
-        if line.startswith("SELECTLIST "):
+        if uline.startswith("SELECTLIST "):
             args = split_command_args(line[11:].strip())
             if len(args) not in [2, 4]:
                 error(lines[i], "Usage: SELECTLIST array choice_var OR SELECTLIST array choice_var DEFAULT number")
@@ -2768,7 +3155,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 CONFIRM ----------------
-        if line.startswith("CONFIRM "):
+        if uline.startswith("CONFIRM "):
             args = split_command_args(line[8:].strip())
             if len(args) not in [2, 4]:
                 error(lines[i], "Usage: CONFIRM message result_var OR CONFIRM message result_var DEFAULT yes")
@@ -2785,7 +3172,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 PROMPT ----------------
-        if line.startswith("PROMPT "):
+        if uline.startswith("PROMPT "):
             args = split_command_args(line[7:].strip())
             if len(args) not in [2, 4]:
                 error(lines[i], "Usage: PROMPT message result_var OR PROMPT message result_var DEFAULT value")
@@ -2801,7 +3188,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 EVENTSET ----------------
-        if line.startswith("EVENTSET "):
+        if uline.startswith("EVENTSET "):
             args = split_command_args(line[9:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: EVENTSET name value")
@@ -2812,7 +3199,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 EVENTGET ----------------
-        if line.startswith("EVENTGET "):
+        if uline.startswith("EVENTGET "):
             args = split_command_args(line[9:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: EVENTGET name result_var")
@@ -2823,7 +3210,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 EVENTCLEAR ----------------
-        if line.startswith("EVENTCLEAR "):
+        if uline.startswith("EVENTCLEAR "):
             name = str(eval_value(line[11:].strip()))
             event_store().pop(name, None)
             event_once_store().pop(name, None)
@@ -2831,7 +3218,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 EVENTEXISTS ----------------
-        if line.startswith("EVENTEXISTS "):
+        if uline.startswith("EVENTEXISTS "):
             args = split_command_args(line[12:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: EVENTEXISTS name result_var")
@@ -2842,7 +3229,7 @@ def execute(lines):
             continue
 
         # ---------------- V3 EVENTONCE ----------------
-        if line.startswith("EVENTONCE "):
+        if uline.startswith("EVENTONCE "):
             args = split_command_args(line[10:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: EVENTONCE name result_var")
@@ -2859,14 +3246,14 @@ def execute(lines):
             continue
 
         # ---------------- V3 TRIGGER ----------------
-        if line.startswith("TRIGGER "):
+        if uline.startswith("TRIGGER "):
             name = str(eval_value(line[8:].strip()))
             event_store()[name] = True
             i += 1
             continue
 
         # ---------------- V3 ONTRIGGER ----------------
-        if line.startswith("ONTRIGGER "):
+        if uline.startswith("ONTRIGGER "):
             args = split_command_args(line[10:].strip())
             if len(args) != 2:
                 error(lines[i], "Usage: ONTRIGGER name function")
@@ -2882,7 +3269,7 @@ def execute(lines):
             continue
 
         # ---------------- DRAWMAP ----------------
-        if line.startswith("DRAWMAP "):
+        if uline.startswith("DRAWMAP "):
             mp = game_get_map(line[8:].strip())
 
             for row in mp:
@@ -2895,7 +3282,7 @@ def execute(lines):
             continue
 
         # ---------------- MAPSIZE ----------------
-        if line.startswith("MAPSIZE "):
+        if uline.startswith("MAPSIZE "):
             args = line[8:].strip().split()
 
             if len(args) != 3:
@@ -2911,7 +3298,7 @@ def execute(lines):
             continue
 
         # ---------------- GETTILE ----------------
-        if line.startswith("GETTILE "):
+        if uline.startswith("GETTILE "):
             args = line[8:].strip().split()
 
             if len(args) != 4:
@@ -2926,7 +3313,7 @@ def execute(lines):
             continue
 
         # ---------------- SETTILE ----------------
-        if line.startswith("SETTILE "):
+        if uline.startswith("SETTILE "):
             args = line[8:].strip().split(maxsplit=3)
 
             if len(args) != 4:
@@ -2944,7 +3331,7 @@ def execute(lines):
             continue
 
         # ---------------- FINDPOS ----------------
-        if line.startswith("FINDPOS "):
+        if uline.startswith("FINDPOS "):
             args = line[8:].strip().split()
 
             if len(args) != 4:
@@ -2962,7 +3349,7 @@ def execute(lines):
             continue
 
         # ---------------- CANMOVE ----------------
-        if line.startswith("CANMOVE "):
+        if uline.startswith("CANMOVE "):
             args = line[8:].strip().split()
 
             if len(args) not in [4, 5]:
@@ -2978,7 +3365,7 @@ def execute(lines):
             continue
 
         # ---------------- MOVEPLAYER ----------------
-        if line.startswith("MOVEPLAYER "):
+        if uline.startswith("MOVEPLAYER "):
             args = line[11:].strip().split()
 
             if len(args) not in [5, 7]:
@@ -3015,7 +3402,7 @@ def execute(lines):
             continue
 
         # ---------------- DISTANCE ----------------
-        if line.startswith("DISTANCE "):
+        if uline.startswith("DISTANCE "):
             args = line[9:].strip().split()
 
             if len(args) != 5:
@@ -3033,7 +3420,7 @@ def execute(lines):
             continue
 
         # ---------------- NEWOBJ ----------------
-        if line.startswith("NEWOBJ "):
+        if uline.startswith("NEWOBJ "):
             name = line[7:].strip()
 
             if not re.match(r"^[a-zA-Z_]\w*$", name):
@@ -3046,7 +3433,7 @@ def execute(lines):
             continue
 
         # ---------------- OBJSET ----------------
-        if line.startswith("OBJSET "):
+        if uline.startswith("OBJSET "):
             args = line[7:].strip().split(maxsplit=2)
 
             if len(args) != 3:
@@ -3066,7 +3453,7 @@ def execute(lines):
             continue
 
         # ---------------- OBJGET ----------------
-        if line.startswith("OBJGET "):
+        if uline.startswith("OBJGET "):
             args = line[7:].strip().split()
 
             if len(args) != 3:
@@ -3082,7 +3469,7 @@ def execute(lines):
             continue
 
         # ---------------- OBJHAS ----------------
-        if line.startswith("OBJHAS "):
+        if uline.startswith("OBJHAS "):
             args = line[7:].strip().split()
 
             if len(args) != 3:
@@ -3098,7 +3485,7 @@ def execute(lines):
             continue
 
         # ---------------- OBJDEL ----------------
-        if line.startswith("OBJDEL "):
+        if uline.startswith("OBJDEL "):
             args = line[7:].strip().split()
 
             if len(args) != 2:
@@ -3116,7 +3503,7 @@ def execute(lines):
             continue
 
         # ---------------- OBJKEYS ----------------
-        if line.startswith("OBJKEYS "):
+        if uline.startswith("OBJKEYS "):
             args = line[8:].strip().split()
 
             if len(args) != 2:
@@ -3131,7 +3518,7 @@ def execute(lines):
             continue
 
         # ---------------- SAVESLOT ----------------
-        if line.startswith("SAVESLOT "):
+        if uline.startswith("SAVESLOT "):
             args = line[9:].strip().split()
 
             if len(args) != 2:
@@ -3150,7 +3537,7 @@ def execute(lines):
             continue
 
         # ---------------- LOADSLOT ----------------
-        if line.startswith("LOADSLOT "):
+        if uline.startswith("LOADSLOT "):
             args = line[9:].strip().split()
 
             if len(args) != 2:
@@ -3171,7 +3558,7 @@ def execute(lines):
             continue
 
         # ---------------- DELSLOT ----------------
-        if line.startswith("DELSLOT "):
+        if uline.startswith("DELSLOT "):
             slot = eval_value(line[8:].strip())
             path = game_slot_path(slot)
 
@@ -3182,7 +3569,7 @@ def execute(lines):
             continue
 
         # ---------------- LISTSLOTS ----------------
-        if line.startswith("LISTSLOTS "):
+        if uline.startswith("LISTSLOTS "):
             target = line[10:].strip()
             folder = game_save_dir()
             slots = []
@@ -3196,14 +3583,14 @@ def execute(lines):
             continue
 
         # ---------------- TIMERSTART ----------------
-        if line.startswith("TIMERSTART "):
+        if uline.startswith("TIMERSTART "):
             name = str(eval_value(line[11:].strip()))
             game_make_timers()[name] = time.time()
             i += 1
             continue
 
         # ---------------- TIMERGET ----------------
-        if line.startswith("TIMERGET "):
+        if uline.startswith("TIMERGET "):
             args = line[9:].strip().split()
 
             if len(args) != 2:
@@ -3223,20 +3610,20 @@ def execute(lines):
             continue
 
         # ---------------- TIMERRESET ----------------
-        if line.startswith("TIMERRESET "):
+        if uline.startswith("TIMERRESET "):
             name = str(eval_value(line[11:].strip()))
             game_make_timers()[name] = time.time()
             i += 1
             continue
 
         # ---------------- SCREENCLEAR ----------------
-        if line == "SCREENCLEAR":
+        if uline == "SCREENCLEAR":
             variables["__screen__"] = {}
             i += 1
             continue
 
         # ---------------- SCREENWRITE ----------------
-        if line.startswith("SCREENWRITE "):
+        if uline.startswith("SCREENWRITE "):
             args = line[12:].strip().split(maxsplit=2)
 
             if len(args) != 3:
@@ -3253,7 +3640,7 @@ def execute(lines):
             continue
 
         # ---------------- SCREENRENDER ----------------
-        if line == "SCREENRENDER":
+        if uline == "SCREENRENDER":
             screen = game_make_screen()
 
             if not screen:
@@ -3281,7 +3668,7 @@ def execute(lines):
             continue
 
         # ---------------- DICE ----------------
-        if line.startswith("DICE "):
+        if uline.startswith("DICE "):
             args = line[5:].strip().split()
 
             if len(args) != 3:
@@ -3306,7 +3693,7 @@ def execute(lines):
             continue
 
         # ---------------- ADDITEM ----------------
-        if line.startswith("ADDITEM "):
+        if uline.startswith("ADDITEM "):
             args = line[8:].strip().split(maxsplit=1)
 
             if len(args) != 2:
@@ -3326,7 +3713,7 @@ def execute(lines):
             continue
 
         # ---------------- HASITEM ----------------
-        if line.startswith("HASITEM "):
+        if uline.startswith("HASITEM "):
             args = line[8:].strip().split(maxsplit=2)
 
             if len(args) != 3:
@@ -3342,7 +3729,7 @@ def execute(lines):
             continue
 
         # ---------------- REMOVEITEM ----------------
-        if line.startswith("REMOVEITEM "):
+        if uline.startswith("REMOVEITEM "):
             args = line[11:].strip().split(maxsplit=2)
 
             if len(args) != 3:
@@ -3365,7 +3752,7 @@ def execute(lines):
             continue
 
         # ---------------- COUNTITEM ----------------
-        if line.startswith("COUNTITEM "):
+        if uline.startswith("COUNTITEM "):
             args = line[10:].strip().split(maxsplit=2)
 
             if len(args) != 3:
@@ -3383,7 +3770,7 @@ def execute(lines):
 
 
         # ---------------- v2.5 AI PRESET ----------------
-        if line.startswith("AIPRESET "):
+        if uline.startswith("AIPRESET "):
             args = line[9:].strip().split()
             if len(args) != 2:
                 error(lines[i], "Usage: AIPRESET aggressive move_var")
@@ -3403,7 +3790,7 @@ def execute(lines):
             continue
 
         # ---------------- AIPATROL ----------------
-        if line.startswith("AIPATROL "):
+        if uline.startswith("AIPATROL "):
             args = line[9:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: AIPATROL route id direction_var")
@@ -3424,7 +3811,7 @@ def execute(lines):
             continue
 
         # ---------------- AICHASE ----------------
-        if line.startswith("AICHASE "):
+        if uline.startswith("AICHASE "):
             args = line[8:].strip().split()
             if len(args) != 5:
                 error(lines[i], "Usage: AICHASE enemy_x enemy_y player_x player_y direction_var")
@@ -3435,7 +3822,7 @@ def execute(lines):
             continue
 
         # ---------------- AIFLEE ----------------
-        if line.startswith("AIFLEE "):
+        if uline.startswith("AIFLEE "):
             args = line[7:].strip().split()
             if len(args) != 5:
                 error(lines[i], "Usage: AIFLEE enemy_x enemy_y player_x player_y direction_var")
@@ -3448,7 +3835,7 @@ def execute(lines):
             continue
 
         # ---------------- MAPTRANS ----------------
-        if line.startswith("MAPTRANS "):
+        if uline.startswith("MAPTRANS "):
             args = line[9:].strip().split()
             if len(args) != 10:
                 error(lines[i], "Usage: MAPTRANS x y trigger_x trigger_y target_map target_x target_y map_var x_var y_var")
@@ -3467,7 +3854,7 @@ def execute(lines):
             continue
 
         # ---------------- SLOTMENU ----------------
-        if line.startswith("SLOTMENU "):
+        if uline.startswith("SLOTMENU "):
             target = line[9:].strip()
             folder = game_save_dir()
             slots = []
@@ -3486,7 +3873,7 @@ def execute(lines):
             continue
 
         # ---------------- ACCOUNTCREATE ----------------
-        if line.startswith("ACCOUNTCREATE "):
+        if uline.startswith("ACCOUNTCREATE "):
             args = line[14:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: ACCOUNTCREATE username password ok_var")
@@ -3504,7 +3891,7 @@ def execute(lines):
             continue
 
         # ---------------- ACCOUNTLOGIN ----------------
-        if line.startswith("ACCOUNTLOGIN "):
+        if uline.startswith("ACCOUNTLOGIN "):
             args = line[13:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: ACCOUNTLOGIN username password ok_var")
@@ -3519,7 +3906,7 @@ def execute(lines):
             continue
 
         # ---------------- ACCOUNTSET ----------------
-        if line.startswith("ACCOUNTSET "):
+        if uline.startswith("ACCOUNTSET "):
             args = line[11:].strip().split(maxsplit=2)
             if len(args) != 3:
                 error(lines[i], "Usage: ACCOUNTSET username key value")
@@ -3535,7 +3922,7 @@ def execute(lines):
             continue
 
         # ---------------- ACCOUNTGET ----------------
-        if line.startswith("ACCOUNTGET "):
+        if uline.startswith("ACCOUNTGET "):
             args = line[11:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: ACCOUNTGET username key variable")
@@ -3548,7 +3935,7 @@ def execute(lines):
             continue
 
         # ---------------- ACCOUNTDELETE ----------------
-        if line.startswith("ACCOUNTDELETE "):
+        if uline.startswith("ACCOUNTDELETE "):
             args = line[14:].strip().split()
             if len(args) != 2:
                 error(lines[i], "Usage: ACCOUNTDELETE username ok_var")
@@ -3566,14 +3953,14 @@ def execute(lines):
             continue
 
         # ---------------- ACCOUNTLIST ----------------
-        if line.startswith("ACCOUNTLIST "):
+        if uline.startswith("ACCOUNTLIST "):
             target = line[12:].strip()
             variables[target] = sorted(list(game_load_accounts().keys()))
             i += 1
             continue
 
         # ---------------- QUESTADD ----------------
-        if line.startswith("QUESTADD "):
+        if uline.startswith("QUESTADD "):
             args = line[9:].strip().split(maxsplit=1)
             if len(args) != 2:
                 error(lines[i], "Usage: QUESTADD id title")
@@ -3585,7 +3972,7 @@ def execute(lines):
             continue
 
         # ---------------- QUESTDONE ----------------
-        if line.startswith("QUESTDONE "):
+        if uline.startswith("QUESTDONE "):
             qid = str(eval_value(line[10:].strip()))
             quests = quest_store()
             if qid in quests:
@@ -3594,7 +3981,7 @@ def execute(lines):
             continue
 
         # ---------------- QUESTSTATUS ----------------
-        if line.startswith("QUESTSTATUS "):
+        if uline.startswith("QUESTSTATUS "):
             args = line[12:].strip().split()
             if len(args) != 2:
                 error(lines[i], "Usage: QUESTSTATUS id variable")
@@ -3606,7 +3993,7 @@ def execute(lines):
             continue
 
         # ---------------- QUESTLIST ----------------
-        if line.startswith("QUESTLIST "):
+        if uline.startswith("QUESTLIST "):
             target = line[10:].strip()
             out = []
             for qid, q in quest_store().items():
@@ -3616,7 +4003,7 @@ def execute(lines):
             continue
 
         # ---------------- XPADD ----------------
-        if line.startswith("XPADD "):
+        if uline.startswith("XPADD "):
             args = line[6:].strip().split()
             if len(args) != 4:
                 error(lines[i], "Usage: XPADD xp_var level_var amount leveled_var")
@@ -3638,7 +4025,7 @@ def execute(lines):
             continue
 
         # ---------------- LEVELINFO ----------------
-        if line.startswith("LEVELINFO "):
+        if uline.startswith("LEVELINFO "):
             args = line[10:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: LEVELINFO xp_var level_var needed_var")
@@ -3651,7 +4038,7 @@ def execute(lines):
             continue
 
         # ---------------- SHOPBUY ----------------
-        if line.startswith("SHOPBUY "):
+        if uline.startswith("SHOPBUY "):
             args = line[8:].strip().split(maxsplit=4)
             if len(args) != 5:
                 error(lines[i], "Usage: SHOPBUY gold_var cost item inventory ok_var")
@@ -3675,7 +4062,7 @@ def execute(lines):
             continue
 
         # ---------------- SHOPSELL ----------------
-        if line.startswith("SHOPSELL "):
+        if uline.startswith("SHOPSELL "):
             args = line[9:].strip().split(maxsplit=4)
             if len(args) != 5:
                 error(lines[i], "Usage: SHOPSELL inventory item price gold_var ok_var")
@@ -3697,7 +4084,7 @@ def execute(lines):
             continue
 
         # ---------------- ENEMYNEW ----------------
-        if line.startswith("ENEMYNEW "):
+        if uline.startswith("ENEMYNEW "):
             args = line[9:].strip().split()
             if len(args) != 6:
                 error(lines[i], "Usage: ENEMYNEW name hp damage x y variable")
@@ -3708,7 +4095,7 @@ def execute(lines):
             continue
 
         # ---------------- ENEMYHIT ----------------
-        if line.startswith("ENEMYHIT "):
+        if uline.startswith("ENEMYHIT "):
             args = line[9:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: ENEMYHIT enemy damage dead_var")
@@ -3724,7 +4111,7 @@ def execute(lines):
             continue
 
         # ---------------- ENEMYALIVE ----------------
-        if line.startswith("ENEMYALIVE "):
+        if uline.startswith("ENEMYALIVE "):
             args = line[11:].strip().split()
             if len(args) != 2:
                 error(lines[i], "Usage: ENEMYALIVE enemy variable")
@@ -3735,7 +4122,7 @@ def execute(lines):
             continue
 
         # ---------------- ENEMYATTACK ----------------
-        if line.startswith("ENEMYATTACK "):
+        if uline.startswith("ENEMYATTACK "):
             args = line[12:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: ENEMYATTACK enemy hp_var damage_var")
@@ -3753,7 +4140,7 @@ def execute(lines):
             continue
 
         # ---------------- ENEMYMOVE ----------------
-        if line.startswith("ENEMYMOVE "):
+        if uline.startswith("ENEMYMOVE "):
             args = line[10:].strip().split()
             if len(args) != 4:
                 error(lines[i], "Usage: ENEMYMOVE enemy map direction moved_var")
@@ -3774,12 +4161,12 @@ def execute(lines):
             continue
 
         # ---------------- Multiplayer helpers ----------------
-        if line.startswith("SETUSERNAME "):
+        if uline.startswith("SETUSERNAME "):
             variables["username"] = str(eval_value(line[12:].strip()))
             i += 1
             continue
 
-        if line.startswith("CHATSEND "):
+        if uline.startswith("CHATSEND "):
             name = str(variables.get("username", "Player"))
             msg = name + ": " + str(eval_value(line[9:].strip()))
             conns = get_connections()
@@ -3791,12 +4178,12 @@ def execute(lines):
             i += 1
             continue
 
-        if line.startswith("CHATRECEIVE "):
+        if uline.startswith("CHATRECEIVE "):
             receive_message(line[12:].strip(), timeout=0.1)
             i += 1
             continue
 
-        if line.startswith("LOBBYADD "):
+        if uline.startswith("LOBBYADD "):
             if "lobby_players" not in variables or not isinstance(variables.get("lobby_players"), list):
                 variables["lobby_players"] = []
             name = str(eval_value(line[9:].strip()))
@@ -3805,12 +4192,12 @@ def execute(lines):
             i += 1
             continue
 
-        if line.startswith("LOBBYLIST "):
+        if uline.startswith("LOBBYLIST "):
             variables[line[10:].strip()] = variables.get("lobby_players", [])
             i += 1
             continue
 
-        if line.startswith("TURNINIT "):
+        if uline.startswith("TURNINIT "):
             args = line[9:].strip().split()
             if len(args) != 2:
                 error(lines[i], "Usage: TURNINIT players_array current_var")
@@ -3823,7 +4210,7 @@ def execute(lines):
             i += 1
             continue
 
-        if line.startswith("NEXTTURN "):
+        if uline.startswith("NEXTTURN "):
             target = line[9:].strip()
             players = variables.get("__turn_players__", [])
             if players:
@@ -3834,7 +4221,7 @@ def execute(lines):
             i += 1
             continue
 
-        if line.startswith("ISTURN "):
+        if uline.startswith("ISTURN "):
             args = line[7:].strip().split()
             if len(args) != 2:
                 error(lines[i], "Usage: ISTURN player result_var")
@@ -3847,7 +4234,7 @@ def execute(lines):
             i += 1
             continue
 
-        if line.startswith("RECONNECT "):
+        if uline.startswith("RECONNECT "):
             args = line[10:].strip().split()
             if len(args) != 3:
                 error(lines[i], "Usage: RECONNECT ip port ok_var")
@@ -3870,7 +4257,7 @@ def execute(lines):
             i += 1
             continue
 
-        if line == "NETINFO":
+        if uline == "NETINFO":
             print("Local IP:")
             print(variables.get("myip", ""))
             print("netok:")
@@ -3880,26 +4267,30 @@ def execute(lines):
             i += 1
             continue
 
-        if line.startswith("NETREADY "):
+        if uline.startswith("NETREADY "):
             variables[line[9:].strip()] = len(get_connections()) > 0
             i += 1
             continue
 
 
         # ---------------- VERSION ----------------
-        if line == "VERSION":
+        if uline == "VERSION":
             print("SpyLang " + SPYLANG_VERSION)
             i += 1
             continue
 
         # ---------------- HELP ----------------
-        if line.startswith("HELP"):
-            print('SpyLang commands: LET, PRINT, INPUT, IF, ELSEIF, ELSE, WHILE, FOR, REPEAT, FOREACH, FUNC, CALL, RETURN, GLOBAL, BREAK, EXIT, PUSH, POP, SET, DEL, CLEAR, SAVEVAR, LOADVAR, WRITEFILE, READFILE, CLS, PAUSE, SLEEP, WAITKEY, HOST, CONNECT, SEND, RECEIVE, TRYRECEIVE, BROADCAST, PING, DISCONNECT, IMPORT, AICHOICE, AICHANCE, AIWEIGHTED, AIDECIDE, AIREMEMBER, AIRECALL, AIFORGET, AIPATH, AISTATE, AIDIALOGUE, AINAME, AIPERSONALITY, AIROUTE, DRAWMAP, MAPSIZE, GETTILE, SETTILE, FINDPOS, CANMOVE, MOVEPLAYER, DISTANCE, LOADMAP, SAVEMAP, MAPFILL, MAPBORDER, MAPRECT, MAPLINE, MAPCOPY, MAPPASTE, MAPREPLACE, MAPCOUNT, MAPFINDALL, VIEWPORT, MENUCREATE, MENUADD, MENUCLEAR, MENUDRAW, MENUCOUNT, MENUSHOW, SELECTLIST, CONFIRM, PROMPT, EVENTSET, EVENTGET, EVENTCLEAR, EVENTEXISTS, EVENTONCE, TRIGGER, ONTRIGGER, NEWOBJ, OBJSET, OBJGET, OBJHAS, OBJDEL, OBJKEYS, SAVESLOT, LOADSLOT, DELSLOT, LISTSLOTS, TIMERSTART, TIMERGET, TIMERRESET, SCREENCLEAR, SCREENWRITE, SCREENRENDER, DICE, ADDITEM, HASITEM, REMOVEITEM, COUNTITEM, VERSION, HELP')
+        if uline.startswith("HELP"):
+            print('SpyLang commands are case-insensitive. Variables, strings, paths, and function names keep their casing.')
+            print('Core commands: LET, PRINT, INPUT, IF, ELSEIF, ELSE, WHILE, FOR, REPEAT, FOREACH, FUNC, CALL, RETURN, GLOBAL, BREAK, EXIT')
+            print('Files/projects: IMPORT, IMPORTONCE, INCLUDE, PROJECTINFO, CONFIGLOAD, CONFIGGET, SAVEVAR, LOADVAR, WRITEFILE, READFILE')
+            print('Developer tools: DEBUG text, DUMPVAR name, DUMPVARS, TRACE ON/OFF, STRICT ON/OFF, ASSERT condition, LOG, WARN, ERROR')
+            print('Game tools: maps, menus, events, objects, save slots, timers, screen drawing, dice, inventory, networking')
             i += 1
             continue
 
         first_word = line.split()[0] if line.split() else line
-        error(lines[i], f"Unknown command: {line}", suggest_command(first_word))
+        runtime_error(lines[i], f"Unknown command: {line}", suggest_command(first_word))
         i += 1
 
     return None
@@ -3910,6 +4301,9 @@ def execute(lines):
 # -----------------------------
 def run_file(filename):
     try:
+        filename = os.path.abspath(filename)
+        variables["script_file"] = filename
+        variables["script_dir"] = os.path.dirname(filename)
         with open(filename, "r", encoding="utf-8") as f:
             lines = make_lines(f.readlines(), filename)
 
@@ -3923,6 +4317,11 @@ def run_file(filename):
 
     except KeyboardInterrupt:
         print("SpyLang stopped by user.")
+
+    except SpyLangStop as e:
+        print("SpyLang stopped.")
+        if str(e):
+            print("Reason:", e)
 
     except Exception as e:
         print("SpyLang crash recovered")

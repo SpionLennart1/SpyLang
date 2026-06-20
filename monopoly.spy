@@ -1,0 +1,1041 @@
+# SpyLang Monopoly Single File
+# Requires SpyLang v3.7+
+# One file: hotseat, host, and client modes are included.
+# This version draws a visible 2D board every turn.
+# Run with: py spy.py monopoly_single_file_v3_7.spy
+
+STRICT OFF
+TRACE OFF
+
+LET board_size = 24
+LET player_count = 2
+LET max_rounds = 30
+LET current_player = 1
+LET round = 1
+LET game_running = true
+LET winner = 0
+LET alive_count = 0
+LET house_price = 100
+LET max_houses = 4
+LET chosen_action = 2
+LET action_prompt = ""
+LET announce_msg = ""
+LET owns_set = false
+
+LET positions = [0,0,0,0,0]
+LET cash = [0,1500,1500,1500,1500]
+LET alive = [false,true,true,true,true]
+
+LET owners = [-1,0,0,-1,0,-1,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,-1,0,0]
+
+LET houses = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+
+LET prices = [0,60,60,0,100,0,0,120,140,0,160,150,0,180,200,0,220,240,0,260,280,0,320,400]
+
+LET rents = [0,10,10,0,18,0,0,20,22,0,24,25,0,28,30,0,32,36,0,40,44,0,50,75]
+
+LET groups = [0,1,1,0,2,0,0,2,3,0,3,4,0,4,5,0,5,6,0,6,7,0,7,8]
+
+LET space_types = [
+"GO",
+"PROPERTY",
+"PROPERTY",
+"TAX",
+"PROPERTY",
+"BONUS",
+"JAIL",
+"PROPERTY",
+"PROPERTY",
+"TAX",
+"PROPERTY",
+"PROPERTY",
+"PARK",
+"PROPERTY",
+"PROPERTY",
+"BONUS",
+"PROPERTY",
+"PROPERTY",
+"GOTOJAIL",
+"PROPERTY",
+"PROPERTY",
+"TAX",
+"PROPERTY",
+"PROPERTY"
+]
+
+LET space_names = [
+"GO",
+"Brown Alley",
+"Blue Street",
+"Tax Office",
+"Green Road",
+"Chance Chest",
+"Jail Visit",
+"Red Avenue",
+"Orange Lane",
+"Tax Yard",
+"Yellow Street",
+"Utility Works",
+"Free Parking",
+"Purple Plaza",
+"Silver Street",
+"Chance Box",
+"Main Station",
+"Ocean View",
+"Go To Jail",
+"Castle Road",
+"Diamond Ave",
+"Tax Tower",
+"Spy Tower",
+"Boardwalk"
+]
+
+
+# Single-file mode helpers
+# game_mode can be: hotseat, host, client
+LET game_mode = "hotseat"
+
+FUNC announce {
+    GLOBAL announce_msg game_mode
+    PRINT %announce_msg%
+
+    IF game_mode == "host" {
+        BROADCAST %announce_msg%
+    }
+}
+
+FUNC get_action p {
+    GLOBAL chosen_action action_prompt game_mode
+
+    IF game_mode == "host" {
+        IF p == 1 {
+            PRINT %action_prompt%
+            PRINT "1 = yes / 2 = no"
+            INPUT chosen_action
+        }
+        ELSE {
+            LET turn_msg = "TURN_P%p%"
+            PRINT %action_prompt%
+            BROADCAST %action_prompt%
+            BROADCAST %turn_msg%
+            RECEIVE chosen_action
+            LET got_msg = "Received action from P%p%: %chosen_action%"
+            PRINT %got_msg%
+            BROADCAST %got_msg%
+        }
+    }
+    ELSE {
+        PRINT %action_prompt%
+        PRINT "1 = yes / 2 = no"
+        INPUT chosen_action
+    }
+}
+
+FUNC setup_players {
+    GLOBAL player_count alive cash positions
+
+    IF player_count < 2 {
+        LET player_count = 2
+    }
+
+    IF player_count > 4 {
+        LET player_count = 4
+    }
+
+    SET positions[1] 0
+    SET positions[2] 0
+    SET positions[3] 0
+    SET positions[4] 0
+
+    SET cash[1] 1500
+    SET cash[2] 1500
+    SET cash[3] 1500
+    SET cash[4] 1500
+
+    SET alive[1] true
+    SET alive[2] true
+    SET alive[3] true
+    SET alive[4] true
+
+    IF player_count < 4 {
+        SET alive[4] false
+    }
+
+    IF player_count < 3 {
+        SET alive[3] false
+    }
+}
+
+FUNC pos_x pos {
+    IF pos == 0 {
+        RETURN 0
+    }
+    ELSEIF pos == 1 {
+        RETURN 2
+    }
+    ELSEIF pos == 2 {
+        RETURN 4
+    }
+    ELSEIF pos == 3 {
+        RETURN 6
+    }
+    ELSEIF pos == 4 {
+        RETURN 8
+    }
+    ELSEIF pos == 5 {
+        RETURN 10
+    }
+    ELSEIF pos == 6 {
+        RETURN 12
+    }
+    ELSEIF pos == 7 {
+        RETURN 12
+    }
+    ELSEIF pos == 8 {
+        RETURN 12
+    }
+    ELSEIF pos == 9 {
+        RETURN 12
+    }
+    ELSEIF pos == 10 {
+        RETURN 12
+    }
+    ELSEIF pos == 11 {
+        RETURN 12
+    }
+    ELSEIF pos == 12 {
+        RETURN 12
+    }
+    ELSEIF pos == 13 {
+        RETURN 10
+    }
+    ELSEIF pos == 14 {
+        RETURN 8
+    }
+    ELSEIF pos == 15 {
+        RETURN 6
+    }
+    ELSEIF pos == 16 {
+        RETURN 4
+    }
+    ELSEIF pos == 17 {
+        RETURN 2
+    }
+    ELSEIF pos == 18 {
+        RETURN 0
+    }
+    ELSEIF pos == 19 {
+        RETURN 0
+    }
+    ELSEIF pos == 20 {
+        RETURN 0
+    }
+    ELSEIF pos == 21 {
+        RETURN 0
+    }
+    ELSEIF pos == 22 {
+        RETURN 0
+    }
+    ELSEIF pos == 23 {
+        RETURN 0
+    }
+    ELSE {
+        RETURN 0
+    }
+}
+
+FUNC pos_y pos {
+    IF pos == 0 {
+        RETURN 12
+    }
+    ELSEIF pos == 1 {
+        RETURN 12
+    }
+    ELSEIF pos == 2 {
+        RETURN 12
+    }
+    ELSEIF pos == 3 {
+        RETURN 12
+    }
+    ELSEIF pos == 4 {
+        RETURN 12
+    }
+    ELSEIF pos == 5 {
+        RETURN 12
+    }
+    ELSEIF pos == 6 {
+        RETURN 12
+    }
+    ELSEIF pos == 7 {
+        RETURN 10
+    }
+    ELSEIF pos == 8 {
+        RETURN 8
+    }
+    ELSEIF pos == 9 {
+        RETURN 6
+    }
+    ELSEIF pos == 10 {
+        RETURN 4
+    }
+    ELSEIF pos == 11 {
+        RETURN 2
+    }
+    ELSEIF pos == 12 {
+        RETURN 0
+    }
+    ELSEIF pos == 13 {
+        RETURN 0
+    }
+    ELSEIF pos == 14 {
+        RETURN 0
+    }
+    ELSEIF pos == 15 {
+        RETURN 0
+    }
+    ELSEIF pos == 16 {
+        RETURN 0
+    }
+    ELSEIF pos == 17 {
+        RETURN 0
+    }
+    ELSEIF pos == 18 {
+        RETURN 0
+    }
+    ELSEIF pos == 19 {
+        RETURN 2
+    }
+    ELSEIF pos == 20 {
+        RETURN 4
+    }
+    ELSEIF pos == 21 {
+        RETURN 6
+    }
+    ELSEIF pos == 22 {
+        RETURN 8
+    }
+    ELSEIF pos == 23 {
+        RETURN 10
+    }
+    ELSE {
+        RETURN 12
+    }
+}
+
+FUNC mark_spaces {
+    GLOBAL board
+
+    SETTILE board 0 12 "G"
+    SETTILE board 2 12 "p"
+    SETTILE board 4 12 "p"
+    SETTILE board 6 12 "T"
+    SETTILE board 8 12 "p"
+    SETTILE board 10 12 "C"
+    SETTILE board 12 12 "J"
+
+    SETTILE board 12 10 "p"
+    SETTILE board 12 8 "p"
+    SETTILE board 12 6 "T"
+    SETTILE board 12 4 "p"
+    SETTILE board 12 2 "p"
+    SETTILE board 12 0 "F"
+
+    SETTILE board 10 0 "p"
+    SETTILE board 8 0 "p"
+    SETTILE board 6 0 "C"
+    SETTILE board 4 0 "p"
+    SETTILE board 2 0 "p"
+    SETTILE board 0 0 "X"
+
+    SETTILE board 0 2 "p"
+    SETTILE board 0 4 "p"
+    SETTILE board 0 6 "T"
+    SETTILE board 0 8 "p"
+    SETTILE board 0 10 "p"
+}
+
+FUNC mark_house s {
+    GLOBAL board houses
+    LET h = houses[s]
+    IF h > 0 {
+        LET hx = CALL pos_x s
+        LET hy = CALL pos_y s
+        SETTILE board hx hy "H"
+    }
+}
+
+FUNC mark_houses {
+    CALL mark_house 1
+    CALL mark_house 2
+    CALL mark_house 4
+    CALL mark_house 7
+    CALL mark_house 8
+    CALL mark_house 10
+    CALL mark_house 11
+    CALL mark_house 13
+    CALL mark_house 14
+    CALL mark_house 16
+    CALL mark_house 17
+    CALL mark_house 19
+    CALL mark_house 20
+    CALL mark_house 22
+    CALL mark_house 23
+}
+
+FUNC place_player p token {
+    GLOBAL board positions alive player_count
+
+    IF p <= player_count {
+        IF alive[p] == true {
+            LET pp = positions[p]
+            LET px = CALL pos_x pp
+            LET py = CALL pos_y pp
+            SETTILE board px py token
+        }
+    }
+}
+
+FUNC show_player p {
+    GLOBAL player_count positions cash alive
+
+    IF p <= player_count {
+        LET money = cash[p]
+        LET spot = positions[p]
+        LET status = alive[p]
+        PRINT "P%p% | Cash: $%money% | Space: %spot% | Alive: %status%"
+    }
+}
+
+FUNC scoreboard {
+    PRINT "------------------------------"
+    PRINT "PLAYERS"
+    CALL show_player 1
+    CALL show_player 2
+    CALL show_player 3
+    CALL show_player 4
+    PRINT "------------------------------"
+}
+
+FUNC current_space_info p {
+    GLOBAL positions space_names space_types owners houses prices rents groups
+    LET s = positions[p]
+    LET n = space_names[s]
+    LET t = space_types[s]
+    PRINT "Current space: #%s% %n% (%t%)"
+
+    IF t == "PROPERTY" {
+        LET own = owners[s]
+        LET h = houses[s]
+        LET pr = prices[s]
+        LET rr = rents[s]
+        LET gr = groups[s]
+        PRINT "Property info: owner P%own%, group %gr%, houses %h%, price $%pr%, base rent $%rr%"
+    }
+}
+
+FUNC tile_for s {
+    GLOBAL positions alive player_count houses space_types
+
+    IF player_count >= 1 {
+        IF alive[1] == true {
+            IF positions[1] == s {
+                RETURN "1"
+            }
+        }
+    }
+
+    IF player_count >= 2 {
+        IF alive[2] == true {
+            IF positions[2] == s {
+                RETURN "2"
+            }
+        }
+    }
+
+    IF player_count >= 3 {
+        IF alive[3] == true {
+            IF positions[3] == s {
+                RETURN "3"
+            }
+        }
+    }
+
+    IF player_count >= 4 {
+        IF alive[4] == true {
+            IF positions[4] == s {
+                RETURN "4"
+            }
+        }
+    }
+
+    IF houses[s] > 0 {
+        RETURN "H"
+    }
+
+    LET t = space_types[s]
+
+    IF t == "GO" {
+        RETURN "G"
+    }
+    ELSEIF t == "PROPERTY" {
+        RETURN "P"
+    }
+    ELSEIF t == "TAX" {
+        RETURN "T"
+    }
+    ELSEIF t == "BONUS" {
+        RETURN "C"
+    }
+    ELSEIF t == "JAIL" {
+        RETURN "J"
+    }
+    ELSEIF t == "PARK" {
+        RETURN "F"
+    }
+    ELSEIF t == "GOTOJAIL" {
+        RETURN "X"
+    }
+    ELSE {
+        RETURN "?"
+    }
+}
+
+FUNC draw_board {
+    GLOBAL round current_player announce_msg
+
+    LET t0 = CALL tile_for 0
+    LET t1 = CALL tile_for 1
+    LET t2 = CALL tile_for 2
+    LET t3 = CALL tile_for 3
+    LET t4 = CALL tile_for 4
+    LET t5 = CALL tile_for 5
+    LET t6 = CALL tile_for 6
+    LET t7 = CALL tile_for 7
+    LET t8 = CALL tile_for 8
+    LET t9 = CALL tile_for 9
+    LET t10 = CALL tile_for 10
+    LET t11 = CALL tile_for 11
+    LET t12 = CALL tile_for 12
+    LET t13 = CALL tile_for 13
+    LET t14 = CALL tile_for 14
+    LET t15 = CALL tile_for 15
+    LET t16 = CALL tile_for 16
+    LET t17 = CALL tile_for 17
+    LET t18 = CALL tile_for 18
+    LET t19 = CALL tile_for 19
+    LET t20 = CALL tile_for 20
+    LET t21 = CALL tile_for 21
+    LET t22 = CALL tile_for 22
+    LET t23 = CALL tile_for 23
+
+    CLS
+    LET announce_msg = ""
+    CALL announce
+    LET announce_msg = "=============================="
+    CALL announce
+    LET announce_msg = " MONOPOLY 2D BOARD"
+    CALL announce
+    LET announce_msg = " Round %round% | Player %current_player% turn"
+    CALL announce
+    LET announce_msg = "=============================="
+    CALL announce
+    LET announce_msg = "Legend: 1-4=players P=property H=house G=GO J=Jail F=Free X=GoToJail T=Tax C=Chance"
+    CALL announce
+    LET announce_msg = ""
+    CALL announce
+
+    LET announce_msg = "+-------------------------------------------------------------------+"
+    CALL announce
+    LET announce_msg = "| [18:%t18%]--[17:%t17%]--[16:%t16%]--[15:%t15%]--[14:%t14%]--[13:%t13%]--[12:%t12%] |"
+    CALL announce
+    LET announce_msg = "|   |                                                       |       |"
+    CALL announce
+    LET announce_msg = "| [19:%t19%]                                             [11:%t11%] |"
+    CALL announce
+    LET announce_msg = "|   |                                                       |       |"
+    CALL announce
+    LET announce_msg = "| [20:%t20%]                                             [10:%t10%] |"
+    CALL announce
+    LET announce_msg = "|   |                                                       |       |"
+    CALL announce
+    LET announce_msg = "| [21:%t21%]              SPYLANG MONOPOLY                 [09:%t9%] |"
+    CALL announce
+    LET announce_msg = "|   |                                                       |       |"
+    CALL announce
+    LET announce_msg = "| [22:%t22%]                                             [08:%t8%] |"
+    CALL announce
+    LET announce_msg = "|   |                                                       |       |"
+    CALL announce
+    LET announce_msg = "| [23:%t23%]                                             [07:%t7%] |"
+    CALL announce
+    LET announce_msg = "|   |                                                       |       |"
+    CALL announce
+    LET announce_msg = "| [00:%t0%]--[01:%t1%]--[02:%t2%]--[03:%t3%]--[04:%t4%]--[05:%t5%]--[06:%t6%] |"
+    CALL announce
+    LET announce_msg = "+-------------------------------------------------------------------+"
+    CALL announce
+    LET announce_msg = ""
+    CALL announce
+
+    CALL scoreboard
+}
+
+FUNC count_alive {
+    GLOBAL alive player_count alive_count winner
+
+    LET alive_count = 0
+    LET winner = 0
+
+    FOR p = 1 TO 4 {
+        IF p <= player_count {
+            IF alive[p] == true {
+                LET alive_count = alive_count + 1
+                LET winner = p
+            }
+        }
+    }
+}
+
+FUNC owns_group p group_id {
+    GLOBAL owners groups owns_set
+
+    LET owns_set = true
+
+    FOR s = 0 TO 23 {
+        IF groups[s] == group_id {
+            IF owners[s] != p {
+                LET owns_set = false
+            }
+        }
+    }
+}
+
+FUNC release_properties p {
+    GLOBAL owners houses
+
+    FOR s = 0 TO 23 {
+        IF owners[s] == p {
+            SET owners[s] 0
+            SET houses[s] 0
+        }
+    }
+}
+
+FUNC check_bankrupt p {
+    GLOBAL cash alive announce_msg
+
+    IF cash[p] < 0 {
+        SET alive[p] false
+        CALL release_properties p
+        LET announce_msg = "P%p% is bankrupt. Their properties returned to the bank."
+        CALL announce
+    }
+}
+
+FUNC pay_player from_player to_player amount {
+    GLOBAL cash announce_msg
+
+    LET from_cash = cash[from_player] - amount
+    LET to_cash = cash[to_player] + amount
+    SET cash[from_player] from_cash
+    SET cash[to_player] to_cash
+    LET announce_msg = "P%from_player% paid P%to_player% $%amount%."
+    CALL announce
+    CALL check_bankrupt from_player
+}
+
+FUNC property_action p s {
+    GLOBAL owners houses cash prices rents groups house_price max_houses chosen_action action_prompt announce_msg owns_set
+
+    LET name = space_names[s]
+    LET owner = owners[s]
+    LET price = prices[s]
+    LET base_rent = rents[s]
+    LET h = houses[s]
+    LET group_id = groups[s]
+
+    IF owner == 0 {
+        IF cash[p] >= price {
+            LET action_prompt = "P%p%: Buy %name% for $%price%? Type 1=yes, 2=no"
+            CALL get_action p
+
+            IF chosen_action == 1 {
+                SET owners[s] p
+                LET newcash = cash[p] - price
+                SET cash[p] newcash
+                LET announce_msg = "P%p% bought %name% for $%price%."
+                CALL announce
+            }
+            ELSE {
+                LET announce_msg = "P%p% skipped buying %name%."
+                CALL announce
+            }
+        }
+        ELSE {
+            LET announce_msg = "P%p% cannot afford %name%."
+            CALL announce
+        }
+    }
+    ELSEIF owner == p {
+        CALL owns_group p group_id
+
+        IF owns_set == true {
+            IF h < max_houses {
+                IF cash[p] >= house_price {
+                    LET action_prompt = "P%p%: Build a house on %name% for $%house_price%? Type 1=yes, 2=no"
+                    CALL get_action p
+
+                    IF chosen_action == 1 {
+                        LET newhouses = h + 1
+                        SET houses[s] newhouses
+                        LET newmoney = cash[p] - house_price
+                        SET cash[p] newmoney
+                        LET announce_msg = "P%p% built a house on %name%. Houses now: %newhouses%."
+                        CALL announce
+                    }
+                    ELSE {
+                        LET announce_msg = "P%p% skipped building a house."
+                        CALL announce
+                    }
+                }
+                ELSE {
+                    LET announce_msg = "P%p% owns this full group but cannot afford a house."
+                    CALL announce
+                }
+            }
+            ELSE {
+                LET announce_msg = "%name% already has the max houses."
+                CALL announce
+            }
+        }
+        ELSE {
+            LET announce_msg = "P%p% owns %name%, but needs the full group before building houses."
+            CALL announce
+        }
+    }
+    ELSE {
+        LET total_rent = base_rent + h * 35
+
+        IF h == 0 {
+            CALL owns_group owner group_id
+            IF owns_set == true {
+                LET total_rent = base_rent * 2
+            }
+        }
+
+        LET announce_msg = "P%p% landed on P%owner%'s %name%. Rent: $%total_rent%."
+        CALL announce
+        CALL pay_player p owner total_rent
+    }
+}
+
+FUNC handle_space p {
+    GLOBAL positions cash action_prompt chosen_action announce_msg
+
+    LET s = positions[p]
+    LET type = space_types[s]
+    LET name = space_names[s]
+
+    LET announce_msg = "P%p% landed on %name%."
+    CALL announce
+
+    IF type == "GO" {
+        LET announce_msg = "P%p% is on GO."
+        CALL announce
+    }
+    ELSEIF type == "TAX" {
+        LET tax = 100
+        LET newcash = cash[p] - tax
+        SET cash[p] newcash
+        LET announce_msg = "P%p% paid $100 tax."
+        CALL announce
+        CALL check_bankrupt p
+    }
+    ELSEIF type == "BONUS" {
+        LET bonus = RANDOM 50 200
+        LET newcash = cash[p] + bonus
+        SET cash[p] newcash
+        LET announce_msg = "P%p% found a bonus chest and gained $%bonus%."
+        CALL announce
+    }
+    ELSEIF type == "JAIL" {
+        LET announce_msg = "P%p% is just visiting jail."
+        CALL announce
+    }
+    ELSEIF type == "PARK" {
+        LET announce_msg = "P%p% rests at Free Parking."
+        CALL announce
+    }
+    ELSEIF type == "GOTOJAIL" {
+        SET positions[p] 6
+        LET announce_msg = "P%p% went to jail! Move to Jail Visit."
+        CALL announce
+    }
+    ELSEIF type == "PROPERTY" {
+        CALL property_action p s
+    }
+}
+
+FUNC move_player p roll {
+    GLOBAL positions cash announce_msg
+
+    LET oldpos = positions[p]
+    LET newpos = oldpos + roll
+
+    IF newpos >= 24 {
+        LET newpos = newpos - 24
+        LET newcash = cash[p] + 200
+        SET cash[p] newcash
+        LET announce_msg = "P%p% passed GO and collected $200."
+        CALL announce
+    }
+
+    SET positions[p] newpos
+}
+
+FUNC take_turn p {
+    GLOBAL current_player dice_roll announce_msg
+
+    LET current_player = p
+    CALL draw_board
+    CALL current_space_info p
+
+    DICE 2 6 dice_roll
+    LET announce_msg = "P%p% rolled %dice_roll%."
+    CALL announce
+    CALL move_player p dice_roll
+    CALL handle_space p
+    CALL draw_board
+}
+
+FUNC advance_turn {
+    GLOBAL current_player player_count round alive
+
+    LET current_player = current_player + 1
+
+    IF current_player > player_count {
+        LET current_player = 1
+        LET round = round + 1
+    }
+
+    CALL count_alive
+
+    WHILE alive[current_player] == false {
+        LET current_player = current_player + 1
+
+        IF current_player > player_count {
+            LET current_player = 1
+            LET round = round + 1
+        }
+    }
+}
+
+FUNC richest_winner {
+    GLOBAL winner cash alive player_count
+
+    LET winner = 1
+    LET best_cash = -9999
+
+    FOR p = 1 TO 4 {
+        IF p <= player_count {
+            IF alive[p] == true {
+                IF cash[p] > best_cash {
+                    LET best_cash = cash[p]
+                    LET winner = p
+                }
+            }
+        }
+    }
+}
+
+FUNC show_all_properties {
+    GLOBAL owners houses prices rents groups space_names space_types
+
+    PRINT ""
+    PRINT "PROPERTY LIST"
+    FOR s = 0 TO 23 {
+        IF space_types[s] == "PROPERTY" {
+            LET n = space_names[s]
+            LET o = owners[s]
+            LET h = houses[s]
+            LET pr = prices[s]
+            LET rr = rents[s]
+            LET gr = groups[s]
+            PRINT "#%s% %n% | Group %gr% | Owner P%o% | Houses %h% | Price $%pr% | Rent $%rr%"
+        }
+    }
+}
+
+FUNC game_over {
+    GLOBAL winner announce_msg
+
+    CALL richest_winner
+    CALL draw_board
+    CALL show_all_properties
+    LET announce_msg = "GAME_OVER"
+    CALL announce
+    LET announce_msg = "Winner: Player %winner%!"
+    CALL announce
+}
+
+FUNC game_loop {
+    GLOBAL game_running round max_rounds current_player alive player_count announce_msg
+
+    CALL setup_players
+    CALL count_alive
+
+    LET announce_msg = "Game started. First player to stay rich wins. Richest alive after max rounds wins."
+    CALL announce
+
+    WHILE game_running == true {
+        CALL count_alive
+
+        IF alive_count <= 1 {
+            LET game_running = false
+        }
+        ELSEIF round > max_rounds {
+            LET game_running = false
+        }
+        ELSE {
+            IF alive[current_player] == true {
+                CALL take_turn current_player
+            }
+            CALL advance_turn
+        }
+    }
+
+    CALL game_over
+}
+
+# -----------------------------
+# SINGLE FILE START MENU
+# -----------------------------
+CLS
+PRINT "=============================="
+PRINT " SPYLANG MONOPOLY SINGLE FILE"
+PRINT "=============================="
+PRINT "1 = Local hotseat on this PC"
+PRINT "2 = Multiplayer host"
+PRINT "3 = Multiplayer client"
+PRINT "Choose mode:"
+INPUT menu_choice
+
+IF menu_choice == 2 {
+    LET game_mode = "host"
+    CLS
+    PRINT "=============================="
+    PRINT " SPYLANG MONOPOLY HOST"
+    PRINT "=============================="
+    PRINT "Host is Player 1."
+    PRINT "How many total players? Type 2, 3, or 4:"
+    INPUT player_count
+
+    IF player_count < 2 {
+        LET player_count = 2
+    }
+    ELSEIF player_count > 4 {
+        LET player_count = 4
+    }
+
+    LET clients_needed = player_count - 1
+
+    PRINT "Port? Example: 5000"
+    INPUT port
+    PRINT "Start this same file on the other computers and choose Multiplayer client."
+    PRINT "Clients should choose player numbers P2, P3, and P4."
+    PRINT "Waiting for clients..."
+
+    HOST port clients_needed
+
+    IF netok == 1 {
+        PRINT "All clients connected. Starting game."
+        CALL game_loop
+        DISCONNECT
+    }
+    ELSE {
+        PRINT RED "Host failed. Check the port/firewall."
+    }
+}
+ELSEIF menu_choice == 3 {
+    LET game_mode = "client"
+    CLS
+    PRINT "=============================="
+    PRINT " SPYLANG MONOPOLY CLIENT"
+    PRINT "=============================="
+    PRINT "Which player are you? Type 2, 3, or 4:"
+    INPUT my_player
+
+    IF my_player < 2 {
+        LET my_player = 2
+    }
+    ELSEIF my_player > 4 {
+        LET my_player = 4
+    }
+
+    LET expected_turn = "TURN_P%my_player%"
+
+    PRINT "Host IP? Example: 127.0.0.1 or the host LAN IP:"
+    INPUT host_ip
+    PRINT "Port? Example: 5000"
+    INPUT host_port
+
+    CONNECT host_ip host_port
+
+    IF netok == 0 {
+        PRINT RED "Could not connect to host."
+        EXIT
+    }
+
+    PRINT GREEN "Connected. Watch the messages. When it is your turn, choose 1 or 2."
+
+    LET client_running = true
+
+    WHILE client_running == true {
+        RECEIVE msg
+
+        IF netok == 0 {
+            PRINT RED "Connection closed."
+            LET client_running = false
+        }
+        ELSE {
+            IF msg == "GAME_OVER" {
+                PRINT "GAME_OVER"
+                LET client_running = false
+            }
+            ELSE {
+                PRINT %msg%
+
+                IF msg == expected_turn {
+                    PRINT GREEN "Your action: 1 = yes / 2 = no"
+                    INPUT action
+                    SEND action
+                }
+            }
+        }
+    }
+
+    DISCONNECT
+    PRINT "Client closed."
+}
+ELSE {
+    LET game_mode = "hotseat"
+    CLS
+    PRINT "=============================="
+    PRINT " SPYLANG MONOPOLY HOTSEAT"
+    PRINT "=============================="
+    PRINT "Players? Type 2, 3, or 4:"
+    INPUT player_count
+
+    IF player_count < 2 {
+        LET player_count = 2
+    }
+    ELSEIF player_count > 4 {
+        LET player_count = 4
+    }
+
+    PRINT "Max rounds is 30. Richest alive player wins after that."
+    PRINT "Press Enter to start."
+    INPUT ready
+
+    CALL game_loop
+}

@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 APP_NAME = "SpyLang Launcher"
-APP_VERSION = "v3.5"
+APP_VERSION = "v3.7"
 CONFIG_FOLDER = "configs"
 CONFIG_NAME = "spylang_launcher_config.json"
 
@@ -51,7 +51,8 @@ KEYWORDS = {
     "MENUCREATE", "MENUADD", "MENUCLEAR", "MENUDRAW", "MENUCOUNT", "MENUSHOW", "SELECTLIST",
     "CONFIRM", "PROMPT", "EVENTSET", "EVENTGET", "EVENTCLEAR", "EVENTEXISTS", "EVENTONCE",
     "TRIGGER", "ONTRIGGER", "HOST", "CONNECT", "SEND", "RECEIVE", "TRYRECEIVE", "PING",
-    "BROADCAST", "DISCONNECT", "VERSION", "CLS", "PAUSE", "SLEEP", "WAITKEY"
+    "BROADCAST", "DISCONNECT", "IMPORTONCE", "INCLUDE", "DEBUG", "DUMPVAR", "DUMPVARS", "TRACE", "STRICT", "ASSERT",
+    "VERSION", "CLS", "PAUSE", "SLEEP", "WAITKEY"
 }
 
 
@@ -261,7 +262,7 @@ class SpyLangLauncher(tk.Tk):
 
         self.build_status_bar(self.body)
 
-        self.write_console("SpyLang Launcher v3 ready.\n", "green")
+        self.write_console("SpyLang Launcher v3.7 ready.\n", "green")
         self.write_console("Tabs: Console / Editor / Scripts / Settings.\n", "muted")
         self.write_console("Stable Windows mode enabled: taskbar works, no Explorer bugs.\n\n", "muted")
 
