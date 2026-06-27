@@ -1,3 +1,5 @@
+CALL loading.spy
+
 # SpyLang v3.7 Tutorial Quiz
 # Beginner-friendly learning game for the current SpyLang version.
 # Works as one file. No extra folders needed.

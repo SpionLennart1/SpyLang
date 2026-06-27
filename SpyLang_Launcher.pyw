@@ -15,7 +15,7 @@ from pathlib import Path
 APP_NAME = "SpyLang Launcher"
 APP_VERSION = "v3.7"
 CONFIG_FOLDER = "configs"
-CONFIG_NAME = "spylang_launcher_config.json"
+CONFIG_NAME = "spylang_launcher.config"
 
 
 THEME = {
